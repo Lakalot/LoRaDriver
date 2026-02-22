@@ -4,3 +4,16 @@
 build/
 Testing/
 compile_commands.json
+
+# BMAD generated artifacts and module sources
+_bmad/
+_bmad-output/
+
+# Local editor/agent metadata
+.vscode/
+.claude/
+.codex/
+.opencode/
+
+# Local archives
+*.7z
