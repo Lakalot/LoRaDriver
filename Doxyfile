@@ -1,0 +1,9 @@
+PROJECT_NAME           = "LoRaDriver"
+PROJECT_NUMBER         = "0.1.0"
+OUTPUT_DIRECTORY       = docs/_doxygen
+INPUT                  = include src
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+GENERATE_LATEX         = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = YES

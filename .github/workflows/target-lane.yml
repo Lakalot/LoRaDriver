@@ -1,0 +1,38 @@
+name: Target Lane
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  platformio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: python -m pip install platformio==6.1.19
+
+      - name: Build target
+        run: python -m platformio run -e esp32dev
+
+      - name: Embedded smoke build check
+        run: python -m platformio test -e esp32dev --without-uploading --without-testing
+
+      - name: Embedded smoke execution (requires attached board)
+        if: ${{ vars.PIO_TEST_PORT != '' }}
+        run: python -m platformio test -e esp32dev --test-port "${{ vars.PIO_TEST_PORT }}"
