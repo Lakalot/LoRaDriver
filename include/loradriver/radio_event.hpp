@@ -15,6 +15,8 @@ enum class RadioEvent {
   kRxListening,
   kRxInProgress,
   kRxDone,
+  kSleep,
+  kStandby,
   kTimeout,
   kError
 };

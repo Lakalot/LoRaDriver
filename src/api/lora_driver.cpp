@@ -26,6 +26,12 @@ constexpr int kDiagRxListening = 4100;
 constexpr int kDiagRxInProgress = 4200;
 constexpr int kDiagRxNotInitialized = 4401;
 constexpr int kDiagRxIllegalState = 4402;
+constexpr int kDiagSleepNotInitialized = 5101;
+constexpr int kDiagSleepIllegalState = 5102;
+constexpr int kDiagSleepTransition = 5103;
+constexpr int kDiagStandbyNotInitialized = 5201;
+constexpr int kDiagStandbyIllegalState = 5202;
+constexpr int kDiagStandbyTransition = 5203;
 
 constexpr std::size_t kMaxPayloadBytes = 255;
 
@@ -259,6 +265,60 @@ LoRaError LoRaDriver::startReceive() noexcept {
   return LoRaError::kOk;
 }
 
+LoRaError LoRaDriver::sleep() noexcept {
+  if (!initialized_) {
+    return fail(LoRaError::kNotInitialized, kDiagSleepNotInitialized, config_);
+  }
+
+  if (state_ != DriverState::kReady && state_ != DriverState::kListening) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagSleepIllegalState, config_);
+  }
+
+  if (!transitionTo(DriverState::kIdle)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagSleepTransition, config_);
+  }
+
+  if (!emitEvent(RadioEvent::kSleep, 0)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagSleepTransition + 1, config_);
+  }
+
+  last_error_ = LoRaError::kOk;
+  last_diagnostic_code_ = 0;
+  last_diagnostic_context_.error = LoRaError::kOk;
+  last_diagnostic_context_.detail_code = 0;
+  last_diagnostic_context_.chip = config_.chip;
+  last_diagnostic_context_.band = config_.band;
+  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  return LoRaError::kOk;
+}
+
+LoRaError LoRaDriver::standby() noexcept {
+  if (!initialized_) {
+    return fail(LoRaError::kNotInitialized, kDiagStandbyNotInitialized, config_);
+  }
+
+  if (state_ != DriverState::kIdle && state_ != DriverState::kListening && state_ != DriverState::kReady) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagStandbyIllegalState, config_);
+  }
+
+  if (state_ != DriverState::kReady && !transitionTo(DriverState::kReady)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagStandbyTransition, config_);
+  }
+
+  if (!emitEvent(RadioEvent::kStandby, 0)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagStandbyTransition + 1, config_);
+  }
+
+  last_error_ = LoRaError::kOk;
+  last_diagnostic_code_ = 0;
+  last_diagnostic_context_.error = LoRaError::kOk;
+  last_diagnostic_context_.detail_code = 0;
+  last_diagnostic_context_.chip = config_.chip;
+  last_diagnostic_context_.band = config_.band;
+  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  return LoRaError::kOk;
+}
+
 bool LoRaDriver::isInitialized() const noexcept {
   return initialized_;
 }
@@ -285,7 +345,7 @@ bool LoRaDriver::transitionTo(DriverState next) noexcept {
   bool allowed = false;
   switch (current) {
     case DriverState::kIdle:
-      allowed = (next == DriverState::kValidating);
+      allowed = (next == DriverState::kValidating || next == DriverState::kReady);
       break;
     case DriverState::kValidating:
       allowed = (next == DriverState::kBindingAdapters || next == DriverState::kIdle);
@@ -313,7 +373,8 @@ bool LoRaDriver::transitionTo(DriverState next) noexcept {
       allowed = (next == DriverState::kReady || next == DriverState::kIdle);
       break;
     case DriverState::kListening:
-      allowed = (next == DriverState::kTxPreparing || next == DriverState::kRxInProgress || next == DriverState::kIdle);
+      allowed = (next == DriverState::kTxPreparing || next == DriverState::kRxInProgress || next == DriverState::kIdle ||
+                 next == DriverState::kReady);
       break;
     case DriverState::kRxInProgress:
       allowed = (next == DriverState::kListening || next == DriverState::kIdle);

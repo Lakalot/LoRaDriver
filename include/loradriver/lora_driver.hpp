@@ -17,9 +17,9 @@ class LoRaDriver {
   struct DiagnosticContext {
     LoRaError error = LoRaError::kOk;
     int detail_code = 0;
-    RadioConfig::Chip chip = RadioConfig::Chip::kSx1276;
-    RadioConfig::Band band = RadioConfig::Band::k868;
-    RadioConfig::DioRouting dio_routing = RadioConfig::DioRouting::kDio0Only;
+    RadioConfig::Chip chip = RadioConfig::Chip{};
+    RadioConfig::Band band = RadioConfig::Band{};
+    RadioConfig::DioRouting dio_routing = RadioConfig::DioRouting{};
   };
 
   [[nodiscard]] LoRaError begin(const RadioConfig& config) noexcept;
@@ -28,6 +28,8 @@ class LoRaDriver {
   [[nodiscard]] LoRaError shutdown() noexcept;
   [[nodiscard]] LoRaError send(const std::uint8_t* payload, std::size_t size) noexcept;
   [[nodiscard]] LoRaError startReceive() noexcept;
+  [[nodiscard]] LoRaError sleep() noexcept;
+  [[nodiscard]] LoRaError standby() noexcept;
 
   [[nodiscard]] bool isInitialized() const noexcept;
   [[nodiscard]] const RadioConfig& currentConfig() const noexcept;

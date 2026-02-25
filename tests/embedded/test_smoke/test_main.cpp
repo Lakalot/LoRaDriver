@@ -173,6 +173,40 @@ void test_send_rejects_null_payload_with_typed_error() {
                         static_cast<int>(driver.lastDiagnosticContext().error));
 }
 
+void test_sleep_then_standby_preserves_contract_level_send_path() {
+  using loradriver::LoRaDriver;
+  using loradriver::LoRaError;
+  using loradriver::RadioConfig;
+  using loradriver::RadioEvent;
+
+  g_callback_count = 0;
+  g_last_event = RadioEvent::kNone;
+  g_last_detail = 0;
+
+  LoRaDriver driver;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
+                        static_cast<int>(driver.setEventCallback(on_radio_event)));
+
+  RadioConfig config;
+  config.chip = RadioConfig::Chip::kSx1276;
+  config.band = RadioConfig::Band::k868;
+  config.dio_routing = RadioConfig::DioRouting::kDio0Only;
+  config.spi_frequency_hz = 8000000;
+
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(config)));
+  g_callback_count = 0;
+
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.sleep()));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kSleep), static_cast<int>(g_last_event));
+
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.standby()));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kStandby), static_cast<int>(g_last_event));
+
+  const std::array<std::uint8_t, 2> payload = {0x01u, 0x02u};
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
+                        static_cast<int>(driver.send(payload.data(), payload.size())));
+}
+
 }  // namespace
 
 void setup() {
@@ -184,6 +218,7 @@ void setup() {
   RUN_TEST(test_shutdown_before_begin_returns_not_initialized_with_diagnostics);
   RUN_TEST(test_send_and_receive_emit_contract_level_events);
   RUN_TEST(test_send_rejects_null_payload_with_typed_error);
+  RUN_TEST(test_sleep_then_standby_preserves_contract_level_send_path);
   UNITY_END();
 }
 

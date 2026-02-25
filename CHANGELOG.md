@@ -16,6 +16,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Deterministic TX lifecycle API via `send()` with explicit transition/event ordering and typed invalid-payload failure path.
 - Deterministic RX lifecycle API via `startReceive()` with explicit listening/in-progress callbacks and deterministic return-to-listen behavior.
 - Host and embedded smoke coverage for TX/RX event sequencing, illegal entry rejection, IRQ profile parity, and repeated TX/RX cycle stability.
+- Stable integration lifecycle now includes `sleep()` and `standby()` to support a no-fork baseline firmware integration path.
+- Integration contract documentation now defines canonical V1 onboarding flow, explicit deviation points, and adapter-boundary guardrails.
+- `kSleep` and `kStandby` events added to `RadioEvent` enum for deterministic power-state observation.
+- Sleep/standby operations now emit events consistent with TX/RX deterministic event pattern.
+- Diagnostic codes for sleep/standby lifecycle (5101-5104, 5201-5204) documented in contracts.md.
 
 ### Fixed
 

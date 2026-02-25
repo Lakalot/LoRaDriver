@@ -74,6 +74,20 @@ This document captures the baseline public contract for LoRaDriver V1.
 
 - Transition guard failures (3403+, 4403+): These occur when callback throws during event emission or when FSM transition is unexpectedly rejected. The base code plus offset indicates the specific failure point in the lifecycle.
 
+### Sleep/Standby Diagnostic Detail Codes (V1)
+
+- Sleep lifecycle diagnostics:
+  - `5101`: Sleep rejected - driver not initialized
+  - `5102`: Sleep rejected - illegal state entry (not Ready/Listening)
+  - `5103`: Sleep transition guard failure
+  - `5104`: Sleep event emission failure (callback threw)
+
+- Standby lifecycle diagnostics:
+  - `5201`: Standby rejected - driver not initialized
+  - `5202`: Standby rejected - illegal state entry (not Idle/Listening/Ready)
+  - `5203`: Standby transition guard failure
+  - `5204`: Standby event emission failure (callback threw)
+
 ## Callback Shape
 
 - Contract preserved for future stories: `std::function<void(RadioEvent, int)>`.
@@ -99,9 +113,78 @@ This document captures the baseline public contract for LoRaDriver V1.
 - Calling `send()`/`startReceive()` before successful `begin()` returns `kNotInitialized` with diagnosable detail code.
 - DIO0-only profile is allowed to degrade event granularity detail codes only; correctness and stability semantics remain identical to DIO0+DIO1.
 
+## Standard Product Firmware Integration Contract (V1)
+
+- Product firmware integrations MUST use only public headers from `include/loradriver/`.
+- Product firmware integrations MUST call public API methods only; do not bind directly to adapter internals in `src/chips/` or `src/platform/`.
+- `sleep()` and `standby()` are part of the stable integration lifecycle and do not require any project-specific fork to use with supported V1 profiles.
+
+## Power Management Contract (V1)
+
+### sleep()
+
+- Valid entry states: `Ready`, `Listening`
+- Transitions to: `Idle`
+- Emits: `kSleep` event (detail_code = 0)
+- Use case: Enter low-power mode when radio will be idle for extended period
+- After sleep, call `standby()` before TX/RX operations
+
+### standby()
+
+- Valid entry states: `Idle`, `Listening`, `Ready`
+- Transitions to: `Ready` (no-op if already in Ready)
+- Emits: `kStandby` event (detail_code = 0)
+- Use case: Return to active runtime state after sleep
+
+### State Transition Rules
+
+- `sleep()` from `kRxInProgress` is rejected with `kTransitionGuardFailure` (interrupt active RX first)
+- `standby()` from any valid state returns driver to `Ready` for immediate TX/RX operations
+
+### Canonical integration lifecycle (stable API only)
+
+1. Initialize with `begin(config)`.
+2. Register events with `setEventCallback(callback)` if runtime telemetry is required.
+3. Execute datapath operations with `send()` and `startReceive()`.
+4. Move to low-power mode with `sleep()`.
+5. Return to active runtime with `standby()`.
+
+Supported baseline flow uses these stable calls: `begin`, `send`, `startReceive`, `sleep`, `standby`.
+
+## SX127x V1 Onboarding and Deviation Points
+
+The onboarding baseline is intentionally strict so teams can integrate without default forks.
+
+### Profile configuration
+
+- Allowed chips: `kSx1276`, `kSx1278`.
+- Any other chip value is rejected with `kUnsupportedProfile` and typed diagnostics.
+
+### IRQ routing mode
+
+- Allowed IRQ modes: `kDio0Only`, `kDio0Dio1`.
+- Other routing values are rejected with explicit typed diagnostics and no hidden fallback.
+
+### Band settings
+
+- Allowed bands: `k433`, `k868`.
+- Unsupported bands are rejected with `kUnsupportedProfile`.
+
+### Onboarding acceptance checks
+
+- `begin()` returns `kOk` for supported SX127x V1 combinations and deterministic startup events are emitted.
+- Unsupported profile combinations return typed errors with non-zero diagnostic details.
+- Event callback shape remains `std::function<void(RadioEvent, int)>` across all supported profiles.
+- Adapter boundaries remain internal: no chip/platform internals are required from public integration code.
+
 ## Shutdown Contract (V1)
 
 - `shutdown()` is valid only when driver is initialized; returns `kNotInitialized` otherwise.
 - Shutdown transitions FSM to `Idle` state through proper FSM authority (not direct mutation).
 - No event is emitted during shutdown; this is intentional to avoid callback complexity during teardown.
 - After shutdown, driver must be re-initialized via `begin()` before any TX/RX operations.
+
+## Power Lifecycle Events (V1)
+
+- `kSleep`: Emitted after successful transition to low-power Idle state
+- `kStandby`: Emitted after successful transition back to Ready state
