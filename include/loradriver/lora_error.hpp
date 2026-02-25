@@ -4,8 +4,11 @@ namespace loradriver {
 
 enum class LoRaError {
   kOk = 0,
-  kInvalidArgument,
+  kInvalidConfig,
   kUnsupportedProfile,
+  kHardwareInitFailure,
+  kTransitionGuardFailure,
+  kAlreadyInitialized,
   kNotInitialized,
   kNotImplemented
 };

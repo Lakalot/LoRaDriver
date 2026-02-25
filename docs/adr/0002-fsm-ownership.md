@@ -16,3 +16,4 @@ Core FSM owns mutable state. Chip/platform adapters cannot directly mutate FSM s
 
 - Easier reasoning about transitions and incident replay.
 - Adapter boundaries remain strict and testable.
+- TX/RX lifecycle paths remain explicit and deterministic (`Ready -> TxPreparing -> TxInProgress -> TxCompleted/TxFailed -> Ready`, plus deterministic RX return-to-listen).
