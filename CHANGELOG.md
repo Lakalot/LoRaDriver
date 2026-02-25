@@ -21,6 +21,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `kSleep` and `kStandby` events added to `RadioEvent` enum for deterministic power-state observation.
 - Sleep/standby operations now emit events consistent with TX/RX deterministic event pattern.
 - Diagnostic codes for sleep/standby lifecycle (5101-5104, 5201-5204) documented in contracts.md.
+- Deterministic timeout recovery API via `recoverFromTimeout()` with typed recovery outcomes and fixed event ordering (`kTimeout` -> `kRecoveryCompleted`).
+- Timeout recovery diagnostics documented for success, guard rejection, and transition failure points (6100, 6200/6201, 6301, 6401+).
 
 ### Fixed
 

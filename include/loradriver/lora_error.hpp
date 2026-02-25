@@ -8,6 +8,8 @@ enum class LoRaError {
   kUnsupportedProfile,
   kHardwareInitFailure,
   kTransitionGuardFailure,
+  kTimeoutRecovered,
+  kTimeoutRecoveryFailure,
   kAlreadyInitialized,
   kNotInitialized,
   kNotImplemented

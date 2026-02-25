@@ -18,6 +18,7 @@ enum class RadioEvent {
   kSleep,
   kStandby,
   kTimeout,
+  kRecoveryCompleted,
   kError
 };
 

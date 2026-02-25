@@ -30,6 +30,7 @@ class LoRaDriver {
   [[nodiscard]] LoRaError startReceive() noexcept;
   [[nodiscard]] LoRaError sleep() noexcept;
   [[nodiscard]] LoRaError standby() noexcept;
+  [[nodiscard]] LoRaError recoverFromTimeout() noexcept;
 
   [[nodiscard]] bool isInitialized() const noexcept;
   [[nodiscard]] const RadioConfig& currentConfig() const noexcept;
@@ -50,6 +51,7 @@ class LoRaDriver {
     kTxFailed,
     kListening,
     kRxInProgress,
+    kTimeoutRecovering,
   };
 
   [[nodiscard]] bool transitionTo(DriverState next) noexcept;

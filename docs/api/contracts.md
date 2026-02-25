@@ -34,6 +34,8 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `kUnsupportedProfile`
   - `kHardwareInitFailure`
   - `kTransitionGuardFailure`
+  - `kTimeoutRecovered`
+  - `kTimeoutRecoveryFailure`
   - `kAlreadyInitialized`
 - `LoRaDriver::lastDiagnosticCode()` exposes minimum triage context for latest failure.
 - `LoRaDriver::lastDiagnosticContext()` exposes typed context for latest failure:
@@ -87,6 +89,16 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `5202`: Standby rejected - illegal state entry (not Idle/Listening/Ready)
   - `5203`: Standby transition guard failure
   - `5204`: Standby event emission failure (callback threw)
+
+### Timeout Recovery Diagnostic Detail Codes (V1)
+
+- Timeout/recovery diagnostics:
+  - `6100`: timeout detected event emitted during deterministic recovery flow
+  - `6200`: recovery completed event (DIO0+DIO1 profile)
+  - `6201`: recovery completed event (DIO0-only profile granularity)
+  - `6301`: timeout recovery rejected - driver not initialized
+  - `6401`: timeout recovery rejected - illegal state entry (not Listening/RxInProgress/TxInProgress)
+  - `6402`-`6404`: timeout recovery transition or event emission failure points
 
 ## Callback Shape
 
@@ -150,6 +162,18 @@ This document captures the baseline public contract for LoRaDriver V1.
 5. Return to active runtime with `standby()`.
 
 Supported baseline flow uses these stable calls: `begin`, `send`, `startReceive`, `sleep`, `standby`.
+
+## Timeout Recovery Contract (V1)
+
+- `recoverFromTimeout()` is valid only from `Listening`, `RxInProgress`, or `TxInProgress`.
+- Recovery path is deterministic and FSM-owned:
+  1. Transition to `TimeoutRecovering`
+  2. Emit `kTimeout` (`detail_code = 6100`)
+  3. Transition to `Ready`
+  4. Emit `kRecoveryCompleted` (`detail_code = 6200` for DIO0+DIO1, `6201` for DIO0-only)
+- Successful timeout recovery returns `LoRaError::kTimeoutRecovered` with typed diagnostic context.
+- Illegal entry state returns `LoRaError::kTransitionGuardFailure` with detail code `6401`.
+- Transition or callback failures during recovery return `LoRaError::kTimeoutRecoveryFailure` with typed diagnostics.
 
 ## SX127x V1 Onboarding and Deviation Points
 

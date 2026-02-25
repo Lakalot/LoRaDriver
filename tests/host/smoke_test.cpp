@@ -17,6 +17,20 @@ using loradriver::LoRaError;
 using loradriver::RadioConfig;
 using loradriver::RadioEvent;
 
+constexpr int kDiagTxPreparing = 3100;
+constexpr int kDiagTxInProgress = 3200;
+constexpr int kDiagTxFailedInvalidPayload = 3301;
+constexpr int kDiagRxListening = 4100;
+constexpr int kDiagRxInProgress = 4200;
+constexpr int kDiagSleepNotInitialized = 5101;
+constexpr int kDiagSleepIllegalState = 5102;
+constexpr int kDiagStandbyNotInitialized = 5201;
+constexpr int kDiagTimeoutDetected = 6100;
+constexpr int kDiagTimeoutRecoveryCompleted = 6200;
+constexpr int kDiagTimeoutRecoveryCompletedDio0Only = 6201;
+constexpr int kDiagTimeoutNotInitialized = 6301;
+constexpr int kDiagTimeoutIllegalState = 6401;
+
 std::string ReadTextFile(const std::string& path) {
   std::ifstream file(path, std::ios::in | std::ios::binary);
   if (!file.is_open()) {
@@ -87,8 +101,8 @@ bool TestDeterministicTxSuccessTransitionOrder() {
   }
 
   const std::vector<EventTrace> expected = {
-      {RadioEvent::kTxPreparing, 3100},
-      {RadioEvent::kTxInProgress, 3200},
+      {RadioEvent::kTxPreparing, kDiagTxPreparing},
+      {RadioEvent::kTxInProgress, kDiagTxInProgress},
       {RadioEvent::kTxCompleted, 1},
   };
 
@@ -128,8 +142,8 @@ bool TestTxFailureUsesDeterministicFailurePath() {
   }
 
   const std::vector<EventTrace> expected = {
-      {RadioEvent::kTxPreparing, 3100},
-      {RadioEvent::kTxFailed, 3301},
+      {RadioEvent::kTxPreparing, kDiagTxPreparing},
+      {RadioEvent::kTxFailed, kDiagTxFailedInvalidPayload},
   };
   if (events != expected) {
     return false;
@@ -151,8 +165,8 @@ bool TestDeterministicRxCompletionAndReturnToListening() {
   }
 
   const std::vector<EventTrace> expected_rx = {
-      {RadioEvent::kRxListening, 4100},
-      {RadioEvent::kRxInProgress, 4200},
+      {RadioEvent::kRxListening, kDiagRxListening},
+      {RadioEvent::kRxInProgress, kDiagRxInProgress},
       {RadioEvent::kRxDone, 1},
   };
   if (events != expected_rx) {
@@ -301,7 +315,7 @@ bool TestStandbyBeforeBeginReturnsTypedError() {
   }
 
   const auto context = driver.lastDiagnosticContext();
-  return context.error == LoRaError::kNotInitialized && context.detail_code == 5201;
+  return context.error == LoRaError::kNotInitialized && context.detail_code == kDiagStandbyNotInitialized;
 }
 
 bool TestSleepBeforeBeginReturnsTypedError() {
@@ -311,10 +325,32 @@ bool TestSleepBeforeBeginReturnsTypedError() {
   }
 
   const auto context = driver.lastDiagnosticContext();
-  return context.error == LoRaError::kNotInitialized && context.detail_code == 5101;
+  return context.error == LoRaError::kNotInitialized && context.detail_code == kDiagSleepNotInitialized;
 }
 
-bool TestSleepDuringRxInProgressReturnsTransitionGuardFailure() {
+bool TestSleepFromIdleReturnsTransitionGuardFailure() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (!BeginAndClearInitEvents(driver, events)) {
+    return false;
+  }
+
+  if (driver.sleep() != LoRaError::kOk) {
+    return false;
+  }
+
+  events.clear();
+
+  const LoRaError result = driver.sleep();
+  if (result != LoRaError::kTransitionGuardFailure) {
+    return false;
+  }
+
+  return driver.lastDiagnosticCode() == kDiagSleepIllegalState;
+}
+
+bool TestTimeoutRecoveryFromListeningReturnsDeterministicSequence() {
   LoRaDriver driver;
   std::vector<EventTrace> events;
 
@@ -327,13 +363,209 @@ bool TestSleepDuringRxInProgressReturnsTransitionGuardFailure() {
   }
 
   events.clear();
-
-  const LoRaError result = driver.sleep();
-  if (result != LoRaError::kTransitionGuardFailure) {
+  const LoRaError timeout_result = driver.recoverFromTimeout();
+  if (timeout_result != LoRaError::kTimeoutRecovered) {
     return false;
   }
 
-  return driver.lastDiagnosticCode() == 5102;
+  const std::vector<EventTrace> expected = {
+      {RadioEvent::kTimeout, kDiagTimeoutDetected},
+      {RadioEvent::kRecoveryCompleted, kDiagTimeoutRecoveryCompletedDio0Only},
+  };
+  if (events != expected) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  if (ctx.error != LoRaError::kTimeoutRecovered || ctx.detail_code != 0) {
+    return false;
+  }
+
+  const std::array<std::uint8_t, 1> payload = {0x2Au};
+  return driver.send(payload.data(), payload.size()) == LoRaError::kOk;
+}
+
+bool TestTimeoutRecoveryFromReadyStateReturnsGuardFailure() {
+  LoRaDriver driver;
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const LoRaError timeout_result = driver.recoverFromTimeout();
+  if (timeout_result != LoRaError::kTransitionGuardFailure) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  return ctx.error == LoRaError::kTransitionGuardFailure && ctx.detail_code == kDiagTimeoutIllegalState;
+}
+
+bool TestRepeatedTimeoutRecoveryLoopsRemainBounded() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (!BeginAndClearInitEvents(driver, events, RadioConfig::DioRouting::kDio0Dio1)) {
+    return false;
+  }
+
+  constexpr int kLoops = 32;
+  for (int i = 0; i < kLoops; ++i) {
+    if (driver.startReceive() != LoRaError::kOk) {
+      return false;
+    }
+
+    events.clear();
+    if (driver.recoverFromTimeout() != LoRaError::kTimeoutRecovered) {
+      return false;
+    }
+
+    if (events.size() != 2u || events[0].event != RadioEvent::kTimeout ||
+        events[1].event != RadioEvent::kRecoveryCompleted) {
+      return false;
+    }
+  }
+
+  return driver.lastError() == LoRaError::kTimeoutRecovered;
+}
+
+bool TestRepeatedSleepWakeLoopsResumeWithoutReset() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (!BeginAndClearInitEvents(driver, events, RadioConfig::DioRouting::kDio0Only)) {
+    return false;
+  }
+
+  constexpr int kLoops = 32;
+  for (int i = 0; i < kLoops; ++i) {
+    events.clear();
+    if (driver.sleep() != LoRaError::kOk) {
+      return false;
+    }
+    if (driver.standby() != LoRaError::kOk) {
+      return false;
+    }
+
+    const std::vector<EventTrace> expected_power = {
+        {RadioEvent::kSleep, 0},
+        {RadioEvent::kStandby, 0},
+    };
+    if (events != expected_power) {
+      return false;
+    }
+
+    events.clear();
+    const std::array<std::uint8_t, 2> payload = {static_cast<std::uint8_t>(i), 0x55u};
+    if (driver.send(payload.data(), payload.size()) != LoRaError::kOk) {
+      return false;
+    }
+
+    if (events.size() != 3u || events.front().event != RadioEvent::kTxPreparing ||
+        events.back().event != RadioEvent::kTxCompleted) {
+      return false;
+    }
+  }
+
+  return driver.isInitialized() && driver.lastError() == LoRaError::kOk;
+}
+
+bool TestTimeoutRecoveryFromReadyReturnsGuardFailureAfterTx() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (!BeginAndClearInitEvents(driver, events, RadioConfig::DioRouting::kDio0Dio1)) {
+    return false;
+  }
+
+  const std::array<std::uint8_t, 2> payload = {0xDEu, 0xADu};
+  if (driver.send(payload.data(), payload.size()) != LoRaError::kOk) {
+    return false;
+  }
+
+  events.clear();
+  const LoRaError timeout_result = driver.recoverFromTimeout();
+  if (timeout_result != LoRaError::kTransitionGuardFailure) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  return ctx.error == LoRaError::kTransitionGuardFailure && ctx.detail_code == kDiagTimeoutIllegalState;
+}
+
+bool TestTimeoutRecoveryFromListeningAfterRxReturnsDeterministicSequence() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (!BeginAndClearInitEvents(driver, events)) {
+    return false;
+  }
+
+  if (driver.startReceive() != LoRaError::kOk) {
+    return false;
+  }
+
+  events.clear();
+  const LoRaError timeout_result = driver.recoverFromTimeout();
+  if (timeout_result != LoRaError::kTimeoutRecovered) {
+    return false;
+  }
+
+  const std::vector<EventTrace> expected = {
+      {RadioEvent::kTimeout, kDiagTimeoutDetected},
+      {RadioEvent::kRecoveryCompleted, kDiagTimeoutRecoveryCompletedDio0Only},
+  };
+  if (events != expected) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  if (ctx.error != LoRaError::kTimeoutRecovered || ctx.detail_code != 0) {
+    return false;
+  }
+
+  return driver.lastError() == LoRaError::kTimeoutRecovered;
+}
+
+bool TestTimeoutRecoveryFromNotInitializedReturnsTypedError() {
+  LoRaDriver driver;
+  const LoRaError result = driver.recoverFromTimeout();
+  if (result != LoRaError::kNotInitialized) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  return ctx.error == LoRaError::kNotInitialized && ctx.detail_code == kDiagTimeoutNotInitialized;
+}
+
+bool TestTimeoutRecoveryCallbackFailureReturnsRecoveryFailure() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (driver.setEventCallback([&events](RadioEvent event, int) {
+        events.push_back(EventTrace{event, 0});
+        if (event == RadioEvent::kTimeout) {
+          throw std::runtime_error("recovery callback failure");
+        }
+      }) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.startReceive() != LoRaError::kOk) {
+    return false;
+  }
+
+  events.clear();
+  const LoRaError result = driver.recoverFromTimeout();
+  if (result != LoRaError::kTimeoutRecoveryFailure) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  return ctx.error == LoRaError::kTimeoutRecoveryFailure;
 }
 
 bool TestUnsupportedBandAndIrqRoutingReturnTypedDiagnostics() {
@@ -465,7 +697,31 @@ int RunSmoke() {
   if (!TestSleepBeforeBeginReturnsTypedError()) {
     return EXIT_FAILURE;
   }
-  if (!TestSleepDuringRxInProgressReturnsTransitionGuardFailure()) {
+  if (!TestSleepFromIdleReturnsTransitionGuardFailure()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryFromListeningReturnsDeterministicSequence()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryFromReadyStateReturnsGuardFailure()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestRepeatedTimeoutRecoveryLoopsRemainBounded()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestRepeatedSleepWakeLoopsResumeWithoutReset()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryFromReadyReturnsGuardFailureAfterTx()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryFromListeningAfterRxReturnsDeterministicSequence()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryFromNotInitializedReturnsTypedError()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimeoutRecoveryCallbackFailureReturnsRecoveryFailure()) {
     return EXIT_FAILURE;
   }
   if (!TestUnsupportedBandAndIrqRoutingReturnTypedDiagnostics()) {

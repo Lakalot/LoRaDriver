@@ -32,6 +32,11 @@ constexpr int kDiagSleepTransition = 5103;
 constexpr int kDiagStandbyNotInitialized = 5201;
 constexpr int kDiagStandbyIllegalState = 5202;
 constexpr int kDiagStandbyTransition = 5203;
+constexpr int kDiagTimeoutDetected = 6100;
+constexpr int kDiagTimeoutRecoveryCompleted = 6200;
+constexpr int kDiagTimeoutNotInitialized = 6301;
+constexpr int kDiagTimeoutIllegalState = 6401;
+constexpr int kDiagTimeoutTransition = 6402;
 
 constexpr std::size_t kMaxPayloadBytes = 255;
 
@@ -319,6 +324,44 @@ LoRaError LoRaDriver::standby() noexcept {
   return LoRaError::kOk;
 }
 
+LoRaError LoRaDriver::recoverFromTimeout() noexcept {
+  if (!initialized_) {
+    return fail(LoRaError::kNotInitialized, kDiagTimeoutNotInitialized, config_);
+  }
+
+  if (state_ != DriverState::kTxInProgress && state_ != DriverState::kRxInProgress &&
+      state_ != DriverState::kListening) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagTimeoutIllegalState, config_);
+  }
+
+  if (!transitionTo(DriverState::kTimeoutRecovering)) {
+    return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition, config_);
+  }
+
+  if (!emitEvent(RadioEvent::kTimeout, kDiagTimeoutDetected)) {
+    return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition + 1, config_);
+  }
+
+  if (!transitionTo(DriverState::kReady)) {
+    return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition + 2, config_);
+  }
+
+  const int recovery_detail =
+      (config_.dio_routing == RadioConfig::DioRouting::kDio0Only) ? 1 : 0;
+  if (!emitEvent(RadioEvent::kRecoveryCompleted, kDiagTimeoutRecoveryCompleted + recovery_detail)) {
+    return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition + 3, config_);
+  }
+
+  last_error_ = LoRaError::kTimeoutRecovered;
+  last_diagnostic_code_ = 0;
+  last_diagnostic_context_.error = LoRaError::kTimeoutRecovered;
+  last_diagnostic_context_.detail_code = 0;
+  last_diagnostic_context_.chip = config_.chip;
+  last_diagnostic_context_.band = config_.band;
+  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  return LoRaError::kTimeoutRecovered;
+}
+
 bool LoRaDriver::isInitialized() const noexcept {
   return initialized_;
 }
@@ -364,7 +407,8 @@ bool LoRaDriver::transitionTo(DriverState next) noexcept {
       allowed = (next == DriverState::kTxInProgress || next == DriverState::kTxFailed || next == DriverState::kIdle);
       break;
     case DriverState::kTxInProgress:
-      allowed = (next == DriverState::kTxCompleted || next == DriverState::kTxFailed || next == DriverState::kIdle);
+      allowed = (next == DriverState::kTxCompleted || next == DriverState::kTxFailed ||
+                 next == DriverState::kTimeoutRecovering || next == DriverState::kIdle);
       break;
     case DriverState::kTxCompleted:
       allowed = (next == DriverState::kReady || next == DriverState::kIdle);
@@ -373,11 +417,16 @@ bool LoRaDriver::transitionTo(DriverState next) noexcept {
       allowed = (next == DriverState::kReady || next == DriverState::kIdle);
       break;
     case DriverState::kListening:
-      allowed = (next == DriverState::kTxPreparing || next == DriverState::kRxInProgress || next == DriverState::kIdle ||
+      allowed = (next == DriverState::kTxPreparing || next == DriverState::kRxInProgress ||
+                 next == DriverState::kTimeoutRecovering || next == DriverState::kIdle ||
                  next == DriverState::kReady);
       break;
     case DriverState::kRxInProgress:
-      allowed = (next == DriverState::kListening || next == DriverState::kIdle);
+      allowed = (next == DriverState::kListening || next == DriverState::kTimeoutRecovering ||
+                 next == DriverState::kIdle);
+      break;
+    case DriverState::kTimeoutRecovering:
+      allowed = (next == DriverState::kReady || next == DriverState::kIdle);
       break;
   }
 
