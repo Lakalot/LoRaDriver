@@ -32,6 +32,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `version.hpp` header with `LORADRIVER_VERSION_*` macros for compile-time version information.
 - Host tests for event ordering determinism, diagnostic context completeness, and incident snapshot format stability.
 
+- `IncidentCategory` enum with stable numeric codes for field incident classification (1000-9000 range).
+- `IncidentSeverity` enum with stable severity levels (`kInfo`, `kWarning`, `kCritical`).
+- `EscalationPath` enum for standardized incident ownership routing.
+- `IncidentClassification` struct with taxonomy version, category, severity, escalation path, and suggested playbook.
+- `classifyIncident()` function for deterministic incident classification from `IncidentSnapshot`.
+- Error-to-category mapping table for automatic classification of all `LoRaError` codes.
+- ADR 0001 extended with incident classification taxonomy documentation.
+- Host tests for classification determinism, category code stability, severity mapping, and integration with driver snapshot capture.
+
 ### Fixed
 
 - `begin()` now preserves initialized runtime state when called again and returns `kAlreadyInitialized` without destructive reset.

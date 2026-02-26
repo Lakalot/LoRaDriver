@@ -8,16 +8,21 @@
 #include <utility>
 #include <vector>
 
+#include "loradriver/incident_classification.hpp"
 #include "loradriver/incident_snapshot.hpp"
 #include "loradriver/lora_driver.hpp"
 
 namespace {
 
+using loradriver::EscalationPath;
+using loradriver::IncidentCategory;
+using loradriver::IncidentClassification;
 using loradriver::IncidentSnapshot;
 using loradriver::LoRaDriver;
 using loradriver::LoRaError;
 using loradriver::RadioConfig;
 using loradriver::RadioEvent;
+using loradriver::classifyIncident;
 
 constexpr int kDiagPhaseStart = 1000;
 constexpr int kDiagConfigValidated = 1500;
@@ -645,12 +650,13 @@ bool TestIntegrationContractDocDefinesCanonicalFlowAndOnboarding() {
 
 bool TestPublicHeadersPreserveAdapterBoundary() {
   const std::string root = LORADRIVER_REPO_ROOT;
-  const std::array<std::string, 5> public_headers = {
+  const std::array<std::string, 6> public_headers = {
       root + "/include/loradriver/lora_driver.hpp",
       root + "/include/loradriver/lora_error.hpp",
       root + "/include/loradriver/radio_config.hpp",
       root + "/include/loradriver/radio_event.hpp",
       root + "/include/loradriver/incident_snapshot.hpp",
+      root + "/include/loradriver/incident_classification.hpp",
   };
 
   for (const auto& header_path : public_headers) {
@@ -906,6 +912,236 @@ bool TestErrorDiagnosticContextIncludesSequence() {
   return ctx.sequence > 0;
 }
 
+bool TestClassifyIncidentReturnsUnknownForOkError() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kOk;
+
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kUnknown) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kInfo) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsTimeoutErrorsCorrectly() {
+  IncidentSnapshot snapshot1;
+  snapshot1.error = LoRaError::kTimeoutRecovered;
+  const IncidentClassification class1 = classifyIncident(snapshot1);
+  if (class1.category != IncidentCategory::kTimeoutRelated) {
+    return false;
+  }
+  if (class1.severity != IncidentSeverity::kWarning) {
+    return false;
+  }
+  if (class1.escalation_path != EscalationPath::kSupportL1) {
+    return false;
+  }
+
+  IncidentSnapshot snapshot2;
+  snapshot2.error = LoRaError::kTimeoutRecoveryFailure;
+  const IncidentClassification class2 = classifyIncident(snapshot2);
+  if (class2.category != IncidentCategory::kTimeoutRelated) {
+    return false;
+  }
+  if (class2.severity != IncidentSeverity::kCritical) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsConfigErrorsCorrectly() {
+  IncidentSnapshot snapshot1;
+  snapshot1.error = LoRaError::kInvalidConfig;
+  const IncidentClassification class1 = classifyIncident(snapshot1);
+  if (class1.category != IncidentCategory::kConfigError) {
+    return false;
+  }
+  if (class1.escalation_path != EscalationPath::kSupportL2) {
+    return false;
+  }
+
+  IncidentSnapshot snapshot2;
+  snapshot2.error = LoRaError::kUnsupportedProfile;
+  const IncidentClassification class2 = classifyIncident(snapshot2);
+  if (class2.category != IncidentCategory::kConfigError) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsHardwareFaultCorrectly() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kHardwareInitFailure;
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kHardwareFault) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kCritical) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kHardwareTeam) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsRuntimeTransitionCorrectly() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kTransitionGuardFailure;
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kRuntimeTransition) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kEngineering) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentIsDeterministic() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kInvalidConfig;
+  snapshot.detail_code = 12345;
+  snapshot.chip = RadioConfig::Chip::kSx1276;
+  snapshot.band = RadioConfig::Band::k868;
+
+  const IncidentClassification class1 = classifyIncident(snapshot);
+  const IncidentClassification class2 = classifyIncident(snapshot);
+
+  if (class1.category != class2.category) {
+    return false;
+  }
+  if (class1.severity != class2.severity) {
+    return false;
+  }
+  if (class1.escalation_path != class2.escalation_path) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentProvidesPlaybookName() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kTimeoutRecovered;
+  const IncidentClassification classification = classifyIncident(snapshot);
+
+  if (classification.suggested_playbook[0] == '\0') {
+    return false;
+  }
+
+  const std::string playbook(classification.suggested_playbook);
+  if (playbook.find("timeout") == std::string::npos) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentClassificationHasTaxonomyVersion() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kInvalidConfig;
+  const IncidentClassification classification = classifyIncident(snapshot);
+
+  if (classification.taxonomy_version_major != 1) {
+    return false;
+  }
+  if (classification.taxonomy_version_minor != 0) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentCategoryCodesAreStable() {
+  if (static_cast<std::uint16_t>(IncidentCategory::kTimeoutRelated) != 1000) {
+    return false;
+  }
+  if (static_cast<std::uint16_t>(IncidentCategory::kIrqAnomaly) != 2000) {
+    return false;
+  }
+  if (static_cast<std::uint16_t>(IncidentCategory::kConfigError) != 3000) {
+    return false;
+  }
+  if (static_cast<std::uint16_t>(IncidentCategory::kRuntimeTransition) != 4000) {
+    return false;
+  }
+  if (static_cast<std::uint16_t>(IncidentCategory::kHardwareFault) != 5000) {
+    return false;
+  }
+  if (static_cast<std::uint16_t>(IncidentCategory::kUnknown) != 9000) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentSeverityValuesAreStable() {
+  if (static_cast<std::uint8_t>(IncidentSeverity::kInfo) != 0) {
+    return false;
+  }
+  if (static_cast<std::uint8_t>(IncidentSeverity::kWarning) != 1) {
+    return false;
+  }
+  if (static_cast<std::uint8_t>(IncidentSeverity::kCritical) != 2) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentClassificationToStringMethods() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kHardwareInitFailure;
+  const IncidentClassification classification = classifyIncident(snapshot);
+
+  const char* cat_str = classification.categoryToString();
+  if (cat_str == nullptr || cat_str[0] == '\0') {
+    return false;
+  }
+
+  const char* sev_str = classification.severityToString();
+  if (sev_str == nullptr || sev_str[0] == '\0') {
+    return false;
+  }
+
+  const char* esc_str = classification.escalationToString();
+  if (esc_str == nullptr || esc_str[0] == '\0') {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentFromDriverSnapshot() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.send(nullptr, 1) != LoRaError::kInvalidConfig) {
+    return false;
+  }
+
+  const IncidentSnapshot snapshot = driver.captureIncidentSnapshot();
+  const IncidentClassification classification = classifyIncident(snapshot);
+
+  if (classification.category != IncidentCategory::kConfigError) {
+    return false;
+  }
+
+  return true;
+}
+
 int RunSmoke() {
   if (!TestDeterministicTxSuccessTransitionOrder()) {
     return EXIT_FAILURE;
@@ -998,6 +1234,42 @@ int RunSmoke() {
     return EXIT_FAILURE;
   }
   if (!TestErrorDiagnosticContextIncludesSequence()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentReturnsUnknownForOkError()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentMapsTimeoutErrorsCorrectly()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentMapsConfigErrorsCorrectly()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentMapsHardwareFaultCorrectly()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentMapsRuntimeTransitionCorrectly()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentIsDeterministic()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentProvidesPlaybookName()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentClassificationHasTaxonomyVersion()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentCategoryCodesAreStable()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentSeverityValuesAreStable()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentClassificationToStringMethods()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestClassifyIncidentFromDriverSnapshot()) {
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;
