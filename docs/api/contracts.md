@@ -41,13 +41,14 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `kTimeoutRecoveryFailure`
   - `kAlreadyInitialized`
 - `LoRaDriver::lastDiagnosticCode()` exposes minimum triage context for latest failure.
-- `LoRaDriver::lastDiagnosticContext()` exposes typed context for latest failure:
-  - `version_major`, `version_minor`, `version_patch`: driver version
+- `LoRaDriver::lastDiagnosticContext()` exposes typed context for latest operation:
+  - `version_major`, `version_minor`, `version_patch`: driver version (always populated)
   - `error`: typed error code
   - `detail_code`: numeric diagnostic code
   - `chip`, `band`, `dio_routing`: profile configuration
-  - `sequence`: operation sequence counter
-  - `timestamp_ms`: timestamp context (reserved for future use)
+  - `sequence`: operation sequence counter (increments on init phases, TX, RX, and recovery)
+  - `timestamp_ms`: timestamp from injectable `TimestampSource` (0 if not configured)
+- `LoRaDriver::setTimestampSource(TimestampSource)` allows host firmware to inject a platform-specific millisecond clock (e.g., `millis()` on Arduino). If not set, all timestamp fields default to 0.
 
 ### Incident Snapshot (V1)
 

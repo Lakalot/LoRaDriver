@@ -65,21 +65,13 @@ bool IsSupportedDioRouting(RadioConfig::DioRouting routing) noexcept {
 }  // namespace
 
 LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kOk;
-  last_diagnostic_context_.detail_code = 0;
+  updateDiagnosticContext(LoRaError::kOk, 0);
   last_diagnostic_context_.chip = config.chip;
   last_diagnostic_context_.band = config.band;
   last_diagnostic_context_.dio_routing = config.dio_routing;
-  last_diagnostic_context_.sequence = sequence_;
-  last_diagnostic_context_.timestamp_ms = 0;
 
   if (initialized_) {
-    last_error_ = LoRaError::kAlreadyInitialized;
-    last_diagnostic_code_ = kDiagTransitionGuard;
-    last_diagnostic_context_.error = LoRaError::kAlreadyInitialized;
-    last_diagnostic_context_.detail_code = kDiagTransitionGuard;
+    updateDiagnosticContext(LoRaError::kAlreadyInitialized, kDiagTransitionGuard);
     last_diagnostic_context_.chip = config_.chip;
     last_diagnostic_context_.band = config_.band;
     last_diagnostic_context_.dio_routing = config_.dio_routing;
@@ -162,22 +154,20 @@ LoRaError LoRaDriver::setEventCallback(RadioEventCallback callback) noexcept {
   return LoRaError::kOk;
 }
 
+LoRaError LoRaDriver::setTimestampSource(TimestampSource source) noexcept {
+  timestamp_source_ = std::move(source);
+  return LoRaError::kOk;
+}
+
 LoRaError LoRaDriver::shutdown() noexcept {
   if (!initialized_) {
-    DiagnosticContext not_init_context{};
-    not_init_context.error = LoRaError::kNotInitialized;
-    not_init_context.detail_code = kDiagShutdownNotInitialized;
-    last_error_ = LoRaError::kNotInitialized;
-    last_diagnostic_code_ = kDiagShutdownNotInitialized;
-    last_diagnostic_context_ = not_init_context;
+    updateDiagnosticContext(LoRaError::kNotInitialized, kDiagShutdownNotInitialized);
     return LoRaError::kNotInitialized;
   }
 
   initialized_ = false;
   (void)transitionTo(DriverState::kIdle);
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_ = DiagnosticContext{};
+  updateDiagnosticContext(LoRaError::kOk, 0);
 
   return LoRaError::kOk;
 }
@@ -190,6 +180,8 @@ LoRaError LoRaDriver::send(const std::uint8_t* payload, std::size_t size) noexce
   if (!isTxEntryState(state_)) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState, config_);
   }
+
+  advanceSequence();
 
   if (!transitionTo(DriverState::kTxPreparing)) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 1, config_);
@@ -209,13 +201,7 @@ LoRaError LoRaDriver::send(const std::uint8_t* payload, std::size_t size) noexce
       return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 5, config_);
     }
 
-    last_error_ = LoRaError::kInvalidConfig;
-    last_diagnostic_code_ = kDiagTxFailedInvalidPayload;
-    last_diagnostic_context_.error = LoRaError::kInvalidConfig;
-    last_diagnostic_context_.detail_code = kDiagTxFailedInvalidPayload;
-    last_diagnostic_context_.chip = config_.chip;
-    last_diagnostic_context_.band = config_.band;
-    last_diagnostic_context_.dio_routing = config_.dio_routing;
+    updateDiagnosticContext(LoRaError::kInvalidConfig, kDiagTxFailedInvalidPayload);
     return LoRaError::kInvalidConfig;
   }
 
@@ -238,13 +224,7 @@ LoRaError LoRaDriver::send(const std::uint8_t* payload, std::size_t size) noexce
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 10, config_);
   }
 
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kOk;
-  last_diagnostic_context_.detail_code = 0;
-  last_diagnostic_context_.chip = config_.chip;
-  last_diagnostic_context_.band = config_.band;
-  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 
@@ -256,6 +236,8 @@ LoRaError LoRaDriver::startReceive() noexcept {
   if (!isRxEntryState(state_)) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState, config_);
   }
+
+  advanceSequence();
 
   if (!transitionTo(DriverState::kListening)) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 1, config_);
@@ -280,13 +262,7 @@ LoRaError LoRaDriver::startReceive() noexcept {
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 6, config_);
   }
 
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kOk;
-  last_diagnostic_context_.detail_code = 0;
-  last_diagnostic_context_.chip = config_.chip;
-  last_diagnostic_context_.band = config_.band;
-  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 
@@ -307,13 +283,7 @@ LoRaError LoRaDriver::sleep() noexcept {
     return fail(LoRaError::kTransitionGuardFailure, kDiagSleepTransition + 1, config_);
   }
 
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kOk;
-  last_diagnostic_context_.detail_code = 0;
-  last_diagnostic_context_.chip = config_.chip;
-  last_diagnostic_context_.band = config_.band;
-  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 
@@ -334,13 +304,7 @@ LoRaError LoRaDriver::standby() noexcept {
     return fail(LoRaError::kTransitionGuardFailure, kDiagStandbyTransition + 1, config_);
   }
 
-  last_error_ = LoRaError::kOk;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kOk;
-  last_diagnostic_context_.detail_code = 0;
-  last_diagnostic_context_.chip = config_.chip;
-  last_diagnostic_context_.band = config_.band;
-  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 
@@ -353,6 +317,8 @@ LoRaError LoRaDriver::recoverFromTimeout() noexcept {
       state_ != DriverState::kListening) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTimeoutIllegalState, config_);
   }
+
+  advanceSequence();
 
   if (!transitionTo(DriverState::kTimeoutRecovering)) {
     return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition, config_);
@@ -372,13 +338,7 @@ LoRaError LoRaDriver::recoverFromTimeout() noexcept {
     return fail(LoRaError::kTimeoutRecoveryFailure, kDiagTimeoutTransition + 3, config_);
   }
 
-  last_error_ = LoRaError::kTimeoutRecovered;
-  last_diagnostic_code_ = 0;
-  last_diagnostic_context_.error = LoRaError::kTimeoutRecovered;
-  last_diagnostic_context_.detail_code = 0;
-  last_diagnostic_context_.chip = config_.chip;
-  last_diagnostic_context_.band = config_.band;
-  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  updateDiagnosticContext(LoRaError::kTimeoutRecovered, 0);
   return LoRaError::kTimeoutRecovered;
 }
 
@@ -466,6 +426,11 @@ bool LoRaDriver::isRxEntryState(DriverState state) const noexcept {
   return state == DriverState::kReady || state == DriverState::kListening;
 }
 
+// NOTE: emitEvent() and fail() use try/catch as a DEFENSIVE SAFETY NET against
+// user-provided callbacks that throw. The library itself does not throw exceptions
+// in runtime paths (per project policy). This catch is intentional to prevent
+// undefined behavior if a callback violates the no-throw contract documented in
+// contracts.md. It is NOT a supported usage pattern for callbacks to throw.
 bool LoRaDriver::emitEvent(RadioEvent event, int detail_code) noexcept {
   if (!callback_) {
     return true;
@@ -482,14 +447,10 @@ bool LoRaDriver::emitEvent(RadioEvent event, int detail_code) noexcept {
 LoRaError LoRaDriver::fail(LoRaError error, int detail_code, const RadioConfig& context) noexcept {
   initialized_ = false;
   state_ = DriverState::kIdle;
-  last_error_ = error;
-  last_diagnostic_code_ = detail_code;
-  last_diagnostic_context_.error = error;
-  last_diagnostic_context_.detail_code = detail_code;
+  updateDiagnosticContext(error, detail_code);
   last_diagnostic_context_.chip = context.chip;
   last_diagnostic_context_.band = context.band;
   last_diagnostic_context_.dio_routing = context.dio_routing;
-  last_diagnostic_context_.sequence = sequence_;
 
   if (callback_) {
     try {
@@ -512,7 +473,7 @@ IncidentSnapshot LoRaDriver::captureIncidentSnapshot() const noexcept {
   snapshot.band = config_.band;
   snapshot.dio_routing = config_.dio_routing;
   snapshot.sequence = sequence_;
-  snapshot.timestamp_ms = 0;
+  snapshot.timestamp_ms = currentTimestamp();
   return snapshot;
 }
 
@@ -522,6 +483,32 @@ std::uint32_t LoRaDriver::currentSequence() const noexcept {
 
 void LoRaDriver::advanceSequence() noexcept {
   ++sequence_;
+}
+
+std::uint32_t LoRaDriver::currentTimestamp() const noexcept {
+  if (timestamp_source_) {
+    try {
+      return timestamp_source_();
+    } catch (...) {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+void LoRaDriver::updateDiagnosticContext(LoRaError error, int detail_code) noexcept {
+  last_error_ = error;
+  last_diagnostic_code_ = detail_code;
+  last_diagnostic_context_.version_major = LORADRIVER_VERSION_MAJOR;
+  last_diagnostic_context_.version_minor = LORADRIVER_VERSION_MINOR;
+  last_diagnostic_context_.version_patch = LORADRIVER_VERSION_PATCH;
+  last_diagnostic_context_.error = error;
+  last_diagnostic_context_.detail_code = detail_code;
+  last_diagnostic_context_.chip = config_.chip;
+  last_diagnostic_context_.band = config_.band;
+  last_diagnostic_context_.dio_routing = config_.dio_routing;
+  last_diagnostic_context_.sequence = sequence_;
+  last_diagnostic_context_.timestamp_ms = currentTimestamp();
 }
 
 }  // namespace loradriver

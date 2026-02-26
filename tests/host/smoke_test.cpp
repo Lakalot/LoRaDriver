@@ -26,7 +26,6 @@ using loradriver::classifyIncident;
 
 constexpr int kDiagPhaseStart = 1000;
 constexpr int kDiagConfigValidated = 1500;
-constexpr int kDiagChipDetectedBase = 0;
 constexpr int kDiagTxPreparing = 3100;
 constexpr int kDiagTxInProgress = 3200;
 constexpr int kDiagTxFailedInvalidPayload = 3301;
@@ -830,9 +829,24 @@ bool TestIncidentSnapshotFormatToProducesStableOutput() {
 
 bool TestIncidentSnapshotFormatToRejectsInvalidBuffer() {
   IncidentSnapshot snapshot{};
+
+  // Null buffer must be rejected
+  const std::size_t null_written = snapshot.formatTo(nullptr, 256);
+  if (null_written != 0) {
+    return false;
+  }
+
+  // Zero-size buffer must be rejected
+  char tiny[1];
+  const std::size_t zero_written = snapshot.formatTo(tiny, 0);
+  if (zero_written != 0) {
+    return false;
+  }
+
+  // Buffer too small for full output must be rejected (truncation not allowed)
   char small_buffer[10];
-  const std::size_t written = snapshot.formatTo(small_buffer, sizeof(small_buffer));
-  return written == 0;
+  const std::size_t small_written = snapshot.formatTo(small_buffer, sizeof(small_buffer));
+  return small_written == 0;
 }
 
 bool TestEventOrderingParityAcrossIrqProfiles() {
@@ -889,8 +903,17 @@ bool TestDiagnosticContextSequenceIncrementsOnOperations() {
   }
 
   const std::uint32_t after_tx_seq = driver.currentSequence();
+  if (after_tx_seq <= initial_seq) {
+    return false;
+  }
 
-  return after_tx_seq >= initial_seq;
+  if (driver.startReceive() != LoRaError::kOk) {
+    return false;
+  }
+
+  const std::uint32_t after_rx_seq = driver.currentSequence();
+
+  return after_rx_seq > after_tx_seq;
 }
 
 bool TestErrorDiagnosticContextIncludesSequence() {
@@ -910,6 +933,83 @@ bool TestErrorDiagnosticContextIncludesSequence() {
   }
 
   return ctx.sequence > 0;
+}
+
+bool TestTimestampSourcePopulatesSnapshotTimestamp() {
+  LoRaDriver driver;
+  std::uint32_t fake_time = 42000;
+
+  if (driver.setTimestampSource([&fake_time]() -> std::uint32_t {
+        return fake_time;
+      }) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  // Verify DiagnosticContext gets timestamp
+  const auto ctx = driver.lastDiagnosticContext();
+  if (ctx.timestamp_ms != fake_time) {
+    return false;
+  }
+
+  // Verify IncidentSnapshot gets timestamp
+  fake_time = 99000;
+  const IncidentSnapshot snapshot = driver.captureIncidentSnapshot();
+  if (snapshot.timestamp_ms != 99000) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestDiagnosticContextVersionAlwaysPopulated() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  // After successful TX
+  const std::array<std::uint8_t, 2> payload = {0x01u, 0x02u};
+  if (driver.send(payload.data(), payload.size()) != LoRaError::kOk) {
+    return false;
+  }
+
+  auto ctx = driver.lastDiagnosticContext();
+  if (ctx.version_major != LORADRIVER_VERSION_MAJOR || ctx.version_minor != LORADRIVER_VERSION_MINOR ||
+      ctx.version_patch != LORADRIVER_VERSION_PATCH) {
+    return false;
+  }
+
+  // After sleep
+  if (driver.sleep() != LoRaError::kOk) {
+    return false;
+  }
+
+  ctx = driver.lastDiagnosticContext();
+  if (ctx.version_major != LORADRIVER_VERSION_MAJOR || ctx.version_minor != LORADRIVER_VERSION_MINOR ||
+      ctx.version_patch != LORADRIVER_VERSION_PATCH) {
+    return false;
+  }
+
+  // After shutdown (not-initialized path)
+  if (driver.standby() != LoRaError::kOk) {
+    return false;
+  }
+  if (driver.shutdown() != LoRaError::kOk) {
+    return false;
+  }
+
+  ctx = driver.lastDiagnosticContext();
+  if (ctx.version_major != LORADRIVER_VERSION_MAJOR || ctx.version_minor != LORADRIVER_VERSION_MINOR ||
+      ctx.version_patch != LORADRIVER_VERSION_PATCH) {
+    return false;
+  }
+
+  return true;
 }
 
 bool TestClassifyIncidentReturnsUnknownForOkError() {
@@ -1234,6 +1334,12 @@ int RunSmoke() {
     return EXIT_FAILURE;
   }
   if (!TestErrorDiagnosticContextIncludesSequence()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestTimestampSourcePopulatesSnapshotTimestamp()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestDiagnosticContextVersionAlwaysPopulated()) {
     return EXIT_FAILURE;
   }
   if (!TestClassifyIncidentReturnsUnknownForOkError()) {

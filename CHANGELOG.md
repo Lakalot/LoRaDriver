@@ -31,6 +31,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `LoRaDriver::currentSequence()` method to observe operation sequence counter.
 - `version.hpp` header with `LORADRIVER_VERSION_*` macros for compile-time version information.
 - Host tests for event ordering determinism, diagnostic context completeness, and incident snapshot format stability.
+- `LoRaDriver::setTimestampSource()` method to inject platform-specific millisecond clock for diagnostic timestamps.
+- Sequence counter now advances on TX, RX, and recovery operations (not just init phases).
+- `updateDiagnosticContext()` helper ensures version, sequence, and timestamp fields are consistently populated on all paths.
 
 - `IncidentCategory` enum with stable numeric codes for field incident classification (1000-9000 range).
 - `IncidentSeverity` enum with stable severity levels (`kInfo`, `kWarning`, `kCritical`).

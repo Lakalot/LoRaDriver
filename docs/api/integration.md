@@ -12,7 +12,7 @@ This guide defines the standard integration path for consuming LoRaDriver in pro
 ## Canonical Integration Flow
 
 1. Build `RadioConfig` with a supported SX127x V1 profile.
-2. Create `LoRaDriver` and optionally register an event callback.
+2. Create `LoRaDriver` and optionally register an event callback and timestamp source.
 3. Call `begin(config)` and verify `LoRaError::kOk`.
 4. Execute transmit and receive operations (`send`, `startReceive`).
 5. If runtime detects RX/TX timeout conditions, execute deterministic recovery with `recoverFromTimeout()` and verify typed outcome.
@@ -47,6 +47,7 @@ This guide defines the standard integration path for consuming LoRaDriver in pro
 - [ ] No integration code depends directly on `src/chips/` or `src/platform/`
 - [ ] Incident snapshots can be captured via `captureIncidentSnapshot()` for support handoff
 - [ ] `IncidentSnapshot::formatTo()` produces stable output for incident reporting
+- [ ] Optional: `setTimestampSource()` configured for non-zero timestamps in diagnostics
 
 ## Incident Capture for Support Handoff
 
@@ -63,3 +64,14 @@ snapshot.formatTo(buffer, sizeof(buffer));
 ```
 
 This standardized format ensures all required evidence is attached in support tickets.
+
+### Injecting a Timestamp Source
+
+To populate timestamp fields in diagnostic context and incident snapshots, inject a platform-specific clock:
+
+```cpp
+// Arduino/ESP32 example
+driver.setTimestampSource([]() -> std::uint32_t { return millis(); });
+```
+
+Without a timestamp source, all `timestamp_ms` fields default to 0.

@@ -9,6 +9,12 @@
 
 namespace loradriver {
 
+/// Comprehensive incident capture for support handoff.
+///
+/// Fields intentionally mirror DiagnosticContext for completeness, but
+/// IncidentSnapshot is a standalone value type for serialization and
+/// cross-boundary transport. DiagnosticContext is a lightweight internal
+/// struct for last-operation tracking within the driver.
 struct IncidentSnapshot {
   std::uint8_t version_major = LORADRIVER_VERSION_MAJOR;
   std::uint8_t version_minor = LORADRIVER_VERSION_MINOR;

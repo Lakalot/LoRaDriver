@@ -4,8 +4,17 @@
 
 namespace loradriver {
 
+// Format field mapping (stable contract - do not reorder):
+//   v  = driver version (major.minor.patch)
+//   e  = error code (LoRaError enum value as int)
+//   c  = chip (RadioConfig::Chip enum value as int)
+//   b  = band (RadioConfig::Band enum value as int)
+//   d  = DIO routing (RadioConfig::DioRouting enum value as int)
+//   dc = detail diagnostic code (numeric)
+//   seq = operation sequence counter
+//   ts  = timestamp in milliseconds (0 if no TimestampSource configured)
 std::size_t IncidentSnapshot::formatTo(char* buffer, std::size_t buffer_size) const noexcept {
-  if (buffer == nullptr || buffer_size < kFormatBufferSize) {
+  if (buffer == nullptr || buffer_size == 0) {
     return 0;
   }
 
