@@ -6,9 +6,12 @@ namespace loradriver {
 
 namespace {
 
+constexpr int kDiagPhaseStart = 1000;
 constexpr int kDiagPhaseValidate = 1100;
 constexpr int kDiagPhaseBindAdapters = 1200;
 constexpr int kDiagPhaseHardwareBringUp = 1300;
+constexpr int kDiagConfigValidated = 1500;
+constexpr int kDiagChipDetected = 1600;
 constexpr int kDiagTransitionGuard = 1400;
 constexpr int kDiagInvalidSpiFrequency = 2001;
 constexpr int kDiagUnsupportedChip = 2101;
@@ -69,6 +72,8 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   last_diagnostic_context_.chip = config.chip;
   last_diagnostic_context_.band = config.band;
   last_diagnostic_context_.dio_routing = config.dio_routing;
+  last_diagnostic_context_.sequence = sequence_;
+  last_diagnostic_context_.timestamp_ms = 0;
 
   if (initialized_) {
     last_error_ = LoRaError::kAlreadyInitialized;
@@ -83,6 +88,11 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   }
 
   state_ = DriverState::kIdle;
+  advanceSequence();
+  if (!emitEvent(RadioEvent::kInitPhaseStart, kDiagPhaseStart)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 9, config);
+  }
+
   if (!transitionTo(DriverState::kValidating)) {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 10, config);
   }
@@ -92,6 +102,11 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
 
   if (!IsSupportedChip(config.chip)) {
     return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagUnsupportedChip), config);
+  }
+
+  advanceSequence();
+  if (!emitEvent(RadioEvent::kChipDetected, static_cast<int>(config.chip))) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 14, config);
   }
 
   if (!IsSupportedBand(config.band)) {
@@ -104,6 +119,11 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
 
   if (!config.isSpiFrequencyInRange()) {
     return fail(LoRaError::kInvalidConfig, kDiagInvalidSpiFrequency, config);
+  }
+
+  advanceSequence();
+  if (!emitEvent(RadioEvent::kConfigValidated, kDiagConfigValidated)) {
+    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 15, config);
   }
 
   if (!transitionTo(DriverState::kBindingAdapters)) {
@@ -469,6 +489,7 @@ LoRaError LoRaDriver::fail(LoRaError error, int detail_code, const RadioConfig& 
   last_diagnostic_context_.chip = context.chip;
   last_diagnostic_context_.band = context.band;
   last_diagnostic_context_.dio_routing = context.dio_routing;
+  last_diagnostic_context_.sequence = sequence_;
 
   if (callback_) {
     try {
@@ -478,6 +499,29 @@ LoRaError LoRaDriver::fail(LoRaError error, int detail_code, const RadioConfig& 
   }
 
   return error;
+}
+
+IncidentSnapshot LoRaDriver::captureIncidentSnapshot() const noexcept {
+  IncidentSnapshot snapshot{};
+  snapshot.version_major = LORADRIVER_VERSION_MAJOR;
+  snapshot.version_minor = LORADRIVER_VERSION_MINOR;
+  snapshot.version_patch = LORADRIVER_VERSION_PATCH;
+  snapshot.error = last_error_;
+  snapshot.detail_code = last_diagnostic_code_;
+  snapshot.chip = config_.chip;
+  snapshot.band = config_.band;
+  snapshot.dio_routing = config_.dio_routing;
+  snapshot.sequence = sequence_;
+  snapshot.timestamp_ms = 0;
+  return snapshot;
+}
+
+std::uint32_t LoRaDriver::currentSequence() const noexcept {
+  return sequence_;
+}
+
+void LoRaDriver::advanceSequence() noexcept {
+  ++sequence_;
 }
 
 }  // namespace loradriver

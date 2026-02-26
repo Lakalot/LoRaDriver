@@ -8,15 +8,20 @@
 #include <utility>
 #include <vector>
 
+#include "loradriver/incident_snapshot.hpp"
 #include "loradriver/lora_driver.hpp"
 
 namespace {
 
+using loradriver::IncidentSnapshot;
 using loradriver::LoRaDriver;
 using loradriver::LoRaError;
 using loradriver::RadioConfig;
 using loradriver::RadioEvent;
 
+constexpr int kDiagPhaseStart = 1000;
+constexpr int kDiagConfigValidated = 1500;
+constexpr int kDiagChipDetectedBase = 0;
 constexpr int kDiagTxPreparing = 3100;
 constexpr int kDiagTxInProgress = 3200;
 constexpr int kDiagTxFailedInvalidPayload = 3301;
@@ -640,11 +645,12 @@ bool TestIntegrationContractDocDefinesCanonicalFlowAndOnboarding() {
 
 bool TestPublicHeadersPreserveAdapterBoundary() {
   const std::string root = LORADRIVER_REPO_ROOT;
-  const std::array<std::string, 4> public_headers = {
+  const std::array<std::string, 5> public_headers = {
       root + "/include/loradriver/lora_driver.hpp",
       root + "/include/loradriver/lora_error.hpp",
       root + "/include/loradriver/radio_config.hpp",
       root + "/include/loradriver/radio_event.hpp",
+      root + "/include/loradriver/incident_snapshot.hpp",
   };
 
   for (const auto& header_path : public_headers) {
@@ -661,6 +667,243 @@ bool TestPublicHeadersPreserveAdapterBoundary() {
   }
 
   return true;
+}
+
+bool TestInitPhaseEventsAreEmittedInDeterministicOrder() {
+  LoRaDriver driver;
+  std::vector<EventTrace> events;
+
+  if (driver.setEventCallback([&events](RadioEvent event, int detail_code) {
+        events.push_back(EventTrace{event, detail_code});
+      }) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (events.empty()) {
+    return false;
+  }
+
+  if (events[0].event != RadioEvent::kInitPhaseStart || events[0].detail != kDiagPhaseStart) {
+    return false;
+  }
+
+  bool found_chip_detected = false;
+  bool found_config_validated = false;
+  int chip_detected_index = -1;
+  int config_validated_index = -1;
+
+  for (std::size_t i = 0; i < events.size(); ++i) {
+    if (events[i].event == RadioEvent::kChipDetected) {
+      found_chip_detected = true;
+      chip_detected_index = static_cast<int>(i);
+    }
+    if (events[i].event == RadioEvent::kConfigValidated) {
+      found_config_validated = true;
+      config_validated_index = static_cast<int>(i);
+    }
+  }
+
+  if (!found_chip_detected || !found_config_validated) {
+    return false;
+  }
+
+  if (chip_detected_index >= config_validated_index) {
+    return false;
+  }
+
+  return events.back().event == RadioEvent::kInitialized;
+}
+
+bool TestDiagnosticContextIncludesVersionAndSequence() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  if (ctx.version_major != LORADRIVER_VERSION_MAJOR) {
+    return false;
+  }
+  if (ctx.version_minor != LORADRIVER_VERSION_MINOR) {
+    return false;
+  }
+  if (ctx.version_patch != LORADRIVER_VERSION_PATCH) {
+    return false;
+  }
+  if (ctx.sequence == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentSnapshotCaptureIncludesAllRequiredFields() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const IncidentSnapshot snapshot = driver.captureIncidentSnapshot();
+  if (snapshot.version_major != LORADRIVER_VERSION_MAJOR) {
+    return false;
+  }
+  if (snapshot.version_minor != LORADRIVER_VERSION_MINOR) {
+    return false;
+  }
+  if (snapshot.version_patch != LORADRIVER_VERSION_PATCH) {
+    return false;
+  }
+  if (snapshot.error != LoRaError::kOk) {
+    return false;
+  }
+  if (snapshot.chip != RadioConfig::Chip::kSx1276) {
+    return false;
+  }
+  if (snapshot.band != RadioConfig::Band::k868) {
+    return false;
+  }
+  if (snapshot.dio_routing != RadioConfig::DioRouting::kDio0Only) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentSnapshotFormatToProducesStableOutput() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const IncidentSnapshot snapshot = driver.captureIncidentSnapshot();
+  char buffer[IncidentSnapshot::kFormatBufferSize];
+  const std::size_t written = snapshot.formatTo(buffer, sizeof(buffer));
+
+  if (written == 0) {
+    return false;
+  }
+
+  const std::string output(buffer, written);
+  if (!Contains(output, "LORADRIVER_INCIDENT:")) {
+    return false;
+  }
+  if (!Contains(output, "v=1.0.0")) {
+    return false;
+  }
+  if (!Contains(output, "e=0")) {
+    return false;
+  }
+  if (!Contains(output, "c=")) {
+    return false;
+  }
+  if (!Contains(output, "b=")) {
+    return false;
+  }
+  if (!Contains(output, "d=")) {
+    return false;
+  }
+  if (!Contains(output, "dc=")) {
+    return false;
+  }
+  if (!Contains(output, "seq=")) {
+    return false;
+  }
+  if (!Contains(output, "ts=")) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestIncidentSnapshotFormatToRejectsInvalidBuffer() {
+  IncidentSnapshot snapshot{};
+  char small_buffer[10];
+  const std::size_t written = snapshot.formatTo(small_buffer, sizeof(small_buffer));
+  return written == 0;
+}
+
+bool TestEventOrderingParityAcrossIrqProfiles() {
+  const std::array<RadioConfig::DioRouting, 2> profiles = {
+      RadioConfig::DioRouting::kDio0Only,
+      RadioConfig::DioRouting::kDio0Dio1,
+  };
+
+  for (const auto routing : profiles) {
+    LoRaDriver driver;
+    std::vector<EventTrace> events;
+
+    if (driver.setEventCallback([&events](RadioEvent event, int detail_code) {
+          events.push_back(EventTrace{event, detail_code});
+        }) != LoRaError::kOk) {
+      return false;
+    }
+
+    if (driver.begin(MakeV1Config(routing)) != LoRaError::kOk) {
+      return false;
+    }
+
+    bool found_init_phase_start = false;
+    for (const auto& evt : events) {
+      if (evt.event == RadioEvent::kInitPhaseStart) {
+        found_init_phase_start = true;
+        break;
+      }
+    }
+
+    if (!found_init_phase_start) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool TestDiagnosticContextSequenceIncrementsOnOperations() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const std::uint32_t initial_seq = driver.currentSequence();
+  if (initial_seq == 0) {
+    return false;
+  }
+
+  const std::array<std::uint8_t, 2> payload = {0x01u, 0x02u};
+  if (driver.send(payload.data(), payload.size()) != LoRaError::kOk) {
+    return false;
+  }
+
+  const std::uint32_t after_tx_seq = driver.currentSequence();
+
+  return after_tx_seq >= initial_seq;
+}
+
+bool TestErrorDiagnosticContextIncludesSequence() {
+  LoRaDriver driver;
+
+  if (driver.begin(MakeV1Config()) != LoRaError::kOk) {
+    return false;
+  }
+
+  if (driver.send(nullptr, 1) != LoRaError::kInvalidConfig) {
+    return false;
+  }
+
+  const auto ctx = driver.lastDiagnosticContext();
+  if (ctx.error != LoRaError::kInvalidConfig) {
+    return false;
+  }
+
+  return ctx.sequence > 0;
 }
 
 int RunSmoke() {
@@ -731,6 +974,30 @@ int RunSmoke() {
     return EXIT_FAILURE;
   }
   if (!TestPublicHeadersPreserveAdapterBoundary()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestInitPhaseEventsAreEmittedInDeterministicOrder()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestDiagnosticContextIncludesVersionAndSequence()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentSnapshotCaptureIncludesAllRequiredFields()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentSnapshotFormatToProducesStableOutput()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestIncidentSnapshotFormatToRejectsInvalidBuffer()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestEventOrderingParityAcrossIrqProfiles()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestDiagnosticContextSequenceIncrementsOnOperations()) {
+    return EXIT_FAILURE;
+  }
+  if (!TestErrorDiagnosticContextIncludesSequence()) {
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;

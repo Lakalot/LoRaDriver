@@ -45,3 +45,21 @@ This guide defines the standard integration path for consuming LoRaDriver in pro
 - [ ] Timeout paths use `recoverFromTimeout` and return typed deterministic diagnostics/events
 - [ ] `sleep` and `standby` restore expected runtime flow without adapter leaks
 - [ ] No integration code depends directly on `src/chips/` or `src/platform/`
+- [ ] Incident snapshots can be captured via `captureIncidentSnapshot()` for support handoff
+- [ ] `IncidentSnapshot::formatTo()` produces stable output for incident reporting
+
+## Incident Capture for Support Handoff
+
+When an incident occurs, capture diagnostic context for support:
+
+```cpp
+// Capture incident snapshot
+auto snapshot = driver.captureIncidentSnapshot();
+
+// Format to buffer for reporting
+char buffer[loradriver::IncidentSnapshot::kFormatBufferSize];
+snapshot.formatTo(buffer, sizeof(buffer));
+// buffer now contains: LORADRIVER_INCIDENT:v=1.0.0;e=...;c=...;b=...;d=...;dc=...;seq=...;ts=...;
+```
+
+This standardized format ensures all required evidence is attached in support tickets.

@@ -23,6 +23,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Diagnostic codes for sleep/standby lifecycle (5101-5104, 5201-5204) documented in contracts.md.
 - Deterministic timeout recovery API via `recoverFromTimeout()` with typed recovery outcomes and fixed event ordering (`kTimeout` -> `kRecoveryCompleted`).
 - Timeout recovery diagnostics documented for success, guard rejection, and transition failure points (6100, 6200/6201, 6301, 6401+).
+- Granular diagnostic events for init lifecycle phases: `kInitPhaseStart`, `kConfigValidated`, `kChipDetected`.
+- `DiagnosticContext` extended with driver version (`version_major`, `version_minor`, `version_patch`), sequence counter, and timestamp field.
+- `IncidentSnapshot` struct for comprehensive incident capture with standardized field order for support handoff.
+- `IncidentSnapshot::formatTo()` method produces stable, parseable output format for incident reporting.
+- `LoRaDriver::captureIncidentSnapshot()` method to capture incident context on demand.
+- `LoRaDriver::currentSequence()` method to observe operation sequence counter.
+- `version.hpp` header with `LORADRIVER_VERSION_*` macros for compile-time version information.
+- Host tests for event ordering determinism, diagnostic context completeness, and incident snapshot format stability.
 
 ### Fixed
 

@@ -4,7 +4,10 @@ namespace loradriver {
 
 enum class RadioEvent {
   kNone = 0,
+  kInitPhaseStart,
   kInitValidate,
+  kConfigValidated,
+  kChipDetected,
   kInitBindAdapters,
   kInitHardwareBringUp,
   kInitialized,

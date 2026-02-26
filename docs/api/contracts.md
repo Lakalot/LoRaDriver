@@ -20,10 +20,13 @@ This document captures the baseline public contract for LoRaDriver V1.
 - Startup entrypoint is `begin(const RadioConfig&)`.
 - `initialize(const RadioConfig&)` is retained as a compatibility alias to `begin`.
 - Deterministic startup emits events in this fixed order:
-  1. `kInitValidate`
-  2. `kInitBindAdapters`
-  3. `kInitHardwareBringUp`
-  4. `kInitialized`
+  1. `kInitPhaseStart` (`detail_code = 1000`)
+  2. `kInitValidate` (`detail_code = 1100`)
+  3. `kChipDetected` (`detail_code` = chip enum value)
+  4. `kConfigValidated` (`detail_code = 1500`)
+  5. `kInitBindAdapters` (`detail_code = 1200`)
+  6. `kInitHardwareBringUp` (`detail_code = 1300`)
+  7. `kInitialized` (`detail_code = 0`)
 - V1 profile scope remains limited to SX1276/SX1278, bands 433/868, and DIO0-only or DIO0+DIO1.
 - SPI frequency is validated in `[4 MHz, 8 MHz]` with explicit rejection outside range.
 
@@ -39,11 +42,26 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `kAlreadyInitialized`
 - `LoRaDriver::lastDiagnosticCode()` exposes minimum triage context for latest failure.
 - `LoRaDriver::lastDiagnosticContext()` exposes typed context for latest failure:
-  - `error`
-  - `detail_code`
-  - `chip`
-  - `band`
-  - `dio_routing`
+  - `version_major`, `version_minor`, `version_patch`: driver version
+  - `error`: typed error code
+  - `detail_code`: numeric diagnostic code
+  - `chip`, `band`, `dio_routing`: profile configuration
+  - `sequence`: operation sequence counter
+  - `timestamp_ms`: timestamp context (reserved for future use)
+
+### Incident Snapshot (V1)
+
+- `LoRaDriver::captureIncidentSnapshot()` returns an `IncidentSnapshot` struct for comprehensive incident capture:
+  - `version_major`, `version_minor`, `version_patch`: driver version at compile time
+  - `error`: typed error code
+  - `detail_code`: numeric diagnostic code
+  - `chip`, `band`, `dio_routing`: profile configuration
+  - `sequence`: operation sequence counter
+  - `timestamp_ms`: timestamp context (reserved for future use)
+- `IncidentSnapshot::formatTo(char* buffer, size_t buffer_size)` produces a stable, parseable output format:
+  - Format: `LORADRIVER_INCIDENT:v=X.Y.Z;e=E;c=C;b=B;d=D;dc=DC;seq=S;ts=T;`
+  - All fields are present in fixed order for reliable parsing
+  - Minimum buffer size: `IncidentSnapshot::kFormatBufferSize` (256 bytes)
 
 ### Diagnostic Detail Encoding (V1)
 

@@ -4,9 +4,11 @@
 #include <cstdint>
 #include <functional>
 
+#include "loradriver/incident_snapshot.hpp"
 #include "loradriver/lora_error.hpp"
 #include "loradriver/radio_config.hpp"
 #include "loradriver/radio_event.hpp"
+#include "loradriver/version.hpp"
 
 namespace loradriver {
 
@@ -15,11 +17,16 @@ class LoRaDriver {
   using RadioEventCallback = std::function<void(RadioEvent, int)>;
 
   struct DiagnosticContext {
+    std::uint8_t version_major = LORADRIVER_VERSION_MAJOR;
+    std::uint8_t version_minor = LORADRIVER_VERSION_MINOR;
+    std::uint8_t version_patch = LORADRIVER_VERSION_PATCH;
     LoRaError error = LoRaError::kOk;
     int detail_code = 0;
     RadioConfig::Chip chip = RadioConfig::Chip{};
     RadioConfig::Band band = RadioConfig::Band{};
     RadioConfig::DioRouting dio_routing = RadioConfig::DioRouting{};
+    std::uint32_t sequence = 0;
+    std::uint32_t timestamp_ms = 0;
   };
 
   [[nodiscard]] LoRaError begin(const RadioConfig& config) noexcept;
@@ -37,6 +44,8 @@ class LoRaDriver {
   [[nodiscard]] LoRaError lastError() const noexcept;
   [[nodiscard]] int lastDiagnosticCode() const noexcept;
   [[nodiscard]] DiagnosticContext lastDiagnosticContext() const noexcept;
+  [[nodiscard]] IncidentSnapshot captureIncidentSnapshot() const noexcept;
+  [[nodiscard]] std::uint32_t currentSequence() const noexcept;
 
  private:
   enum class DriverState {
@@ -59,6 +68,7 @@ class LoRaDriver {
   [[nodiscard]] bool isRxEntryState(DriverState state) const noexcept;
   [[nodiscard]] bool emitEvent(RadioEvent event, int detail_code) noexcept;
   [[nodiscard]] LoRaError fail(LoRaError error, int detail_code, const RadioConfig& context) noexcept;
+  void advanceSequence() noexcept;
 
   RadioConfig config_{};
   RadioEventCallback callback_{};
@@ -67,6 +77,7 @@ class LoRaDriver {
   LoRaError last_error_ = LoRaError::kOk;
   int last_diagnostic_code_ = 0;
   DiagnosticContext last_diagnostic_context_{};
+  std::uint32_t sequence_ = 0;
 };
 
 }  // namespace loradriver

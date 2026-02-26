@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(loradriver STATIC
+  src/api/incident_snapshot.cpp
   src/api/lora_driver.cpp
   src/core/core_stub.cpp
   src/chips/sx127x/sx127x_stub.cpp
