@@ -1,6 +1,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <stdexcept>
@@ -17,6 +18,7 @@ namespace {
 using loradriver::EscalationPath;
 using loradriver::IncidentCategory;
 using loradriver::IncidentClassification;
+using loradriver::IncidentSeverity;
 using loradriver::IncidentSnapshot;
 using loradriver::LoRaDriver;
 using loradriver::LoRaError;
@@ -1221,6 +1223,82 @@ bool TestIncidentClassificationToStringMethods() {
   return true;
 }
 
+bool TestClassifyIncidentMapsAlreadyInitializedCorrectly() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kAlreadyInitialized;
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kConfigError) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kInfo) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kSupportL1) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsNotInitializedCorrectly() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kNotInitialized;
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kConfigError) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kWarning) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kSupportL1) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentMapsNotImplementedCorrectly() {
+  IncidentSnapshot snapshot;
+  snapshot.error = LoRaError::kNotImplemented;
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kRuntimeTransition) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kWarning) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kEngineering) {
+    return false;
+  }
+
+  return true;
+}
+
+bool TestClassifyIncidentUnmappedErrorFallsToUnknown() {
+  IncidentSnapshot snapshot;
+  // Cast an arbitrary unmapped integer value to LoRaError to simulate future
+  // or unknown error codes that have no classification mapping.
+  snapshot.error = static_cast<LoRaError>(99999);
+  const IncidentClassification classification = classifyIncident(snapshot);
+  if (classification.category != IncidentCategory::kUnknown) {
+    return false;
+  }
+  if (classification.severity != IncidentSeverity::kWarning) {
+    return false;
+  }
+  if (classification.escalation_path != EscalationPath::kSupportL1) {
+    return false;
+  }
+
+  // Verify playbook is set to "unknown-error"
+  const std::string playbook(classification.suggested_playbook);
+  if (playbook != "unknown-error") {
+    return false;
+  }
+
+  return true;
+}
+
 bool TestClassifyIncidentFromDriverSnapshot() {
   LoRaDriver driver;
 
@@ -1242,142 +1320,62 @@ bool TestClassifyIncidentFromDriverSnapshot() {
   return true;
 }
 
+#define RUN_TEST(fn) \
+  if (!(fn)()) { \
+    std::fprintf(stderr, "FAIL: %s\n", #fn); \
+    return EXIT_FAILURE; \
+  }
+
 int RunSmoke() {
-  if (!TestDeterministicTxSuccessTransitionOrder()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestSendRejectsIllegalEntryStateWithTypedError()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTxFailureUsesDeterministicFailurePath()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestDeterministicRxCompletionAndReturnToListening()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIrqProfilesKeepCoreTxRxParity()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestRepeatedTxRxCyclesRemainDeterministic()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestCallbackExceptionReturnsTransitionGuardFailure()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestPayloadExceedsMaxSizeReturnsInvalidConfig()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestSleepAndStandbyProvideCanonicalPowerFlow()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestStandbyBeforeBeginReturnsTypedError()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestSleepBeforeBeginReturnsTypedError()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestSleepFromIdleReturnsTransitionGuardFailure()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryFromListeningReturnsDeterministicSequence()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryFromReadyStateReturnsGuardFailure()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestRepeatedTimeoutRecoveryLoopsRemainBounded()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestRepeatedSleepWakeLoopsResumeWithoutReset()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryFromReadyReturnsGuardFailureAfterTx()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryFromListeningAfterRxReturnsDeterministicSequence()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryFromNotInitializedReturnsTypedError()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimeoutRecoveryCallbackFailureReturnsRecoveryFailure()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestUnsupportedBandAndIrqRoutingReturnTypedDiagnostics()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIntegrationContractDocDefinesCanonicalFlowAndOnboarding()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestPublicHeadersPreserveAdapterBoundary()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestInitPhaseEventsAreEmittedInDeterministicOrder()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestDiagnosticContextIncludesVersionAndSequence()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentSnapshotCaptureIncludesAllRequiredFields()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentSnapshotFormatToProducesStableOutput()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentSnapshotFormatToRejectsInvalidBuffer()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestEventOrderingParityAcrossIrqProfiles()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestDiagnosticContextSequenceIncrementsOnOperations()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestErrorDiagnosticContextIncludesSequence()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestTimestampSourcePopulatesSnapshotTimestamp()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestDiagnosticContextVersionAlwaysPopulated()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentReturnsUnknownForOkError()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentMapsTimeoutErrorsCorrectly()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentMapsConfigErrorsCorrectly()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentMapsHardwareFaultCorrectly()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentMapsRuntimeTransitionCorrectly()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentIsDeterministic()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentProvidesPlaybookName()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentClassificationHasTaxonomyVersion()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentCategoryCodesAreStable()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentSeverityValuesAreStable()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestIncidentClassificationToStringMethods()) {
-    return EXIT_FAILURE;
-  }
-  if (!TestClassifyIncidentFromDriverSnapshot()) {
-    return EXIT_FAILURE;
-  }
+  RUN_TEST(TestDeterministicTxSuccessTransitionOrder)
+  RUN_TEST(TestSendRejectsIllegalEntryStateWithTypedError)
+  RUN_TEST(TestTxFailureUsesDeterministicFailurePath)
+  RUN_TEST(TestDeterministicRxCompletionAndReturnToListening)
+  RUN_TEST(TestIrqProfilesKeepCoreTxRxParity)
+  RUN_TEST(TestRepeatedTxRxCyclesRemainDeterministic)
+  RUN_TEST(TestCallbackExceptionReturnsTransitionGuardFailure)
+  RUN_TEST(TestPayloadExceedsMaxSizeReturnsInvalidConfig)
+  RUN_TEST(TestSleepAndStandbyProvideCanonicalPowerFlow)
+  RUN_TEST(TestStandbyBeforeBeginReturnsTypedError)
+  RUN_TEST(TestSleepBeforeBeginReturnsTypedError)
+  RUN_TEST(TestSleepFromIdleReturnsTransitionGuardFailure)
+  RUN_TEST(TestTimeoutRecoveryFromListeningReturnsDeterministicSequence)
+  RUN_TEST(TestTimeoutRecoveryFromReadyStateReturnsGuardFailure)
+  RUN_TEST(TestRepeatedTimeoutRecoveryLoopsRemainBounded)
+  RUN_TEST(TestRepeatedSleepWakeLoopsResumeWithoutReset)
+  RUN_TEST(TestTimeoutRecoveryFromReadyReturnsGuardFailureAfterTx)
+  RUN_TEST(TestTimeoutRecoveryFromListeningAfterRxReturnsDeterministicSequence)
+  RUN_TEST(TestTimeoutRecoveryFromNotInitializedReturnsTypedError)
+  RUN_TEST(TestTimeoutRecoveryCallbackFailureReturnsRecoveryFailure)
+  RUN_TEST(TestUnsupportedBandAndIrqRoutingReturnTypedDiagnostics)
+  RUN_TEST(TestIntegrationContractDocDefinesCanonicalFlowAndOnboarding)
+  RUN_TEST(TestPublicHeadersPreserveAdapterBoundary)
+  RUN_TEST(TestInitPhaseEventsAreEmittedInDeterministicOrder)
+  RUN_TEST(TestDiagnosticContextIncludesVersionAndSequence)
+  RUN_TEST(TestIncidentSnapshotCaptureIncludesAllRequiredFields)
+  RUN_TEST(TestIncidentSnapshotFormatToProducesStableOutput)
+  RUN_TEST(TestIncidentSnapshotFormatToRejectsInvalidBuffer)
+  RUN_TEST(TestEventOrderingParityAcrossIrqProfiles)
+  RUN_TEST(TestDiagnosticContextSequenceIncrementsOnOperations)
+  RUN_TEST(TestErrorDiagnosticContextIncludesSequence)
+  RUN_TEST(TestTimestampSourcePopulatesSnapshotTimestamp)
+  RUN_TEST(TestDiagnosticContextVersionAlwaysPopulated)
+  RUN_TEST(TestClassifyIncidentReturnsUnknownForOkError)
+  RUN_TEST(TestClassifyIncidentMapsTimeoutErrorsCorrectly)
+  RUN_TEST(TestClassifyIncidentMapsConfigErrorsCorrectly)
+  RUN_TEST(TestClassifyIncidentMapsHardwareFaultCorrectly)
+  RUN_TEST(TestClassifyIncidentMapsRuntimeTransitionCorrectly)
+  RUN_TEST(TestClassifyIncidentIsDeterministic)
+  RUN_TEST(TestClassifyIncidentProvidesPlaybookName)
+  RUN_TEST(TestIncidentClassificationHasTaxonomyVersion)
+  RUN_TEST(TestIncidentCategoryCodesAreStable)
+  RUN_TEST(TestIncidentSeverityValuesAreStable)
+  RUN_TEST(TestIncidentClassificationToStringMethods)
+  RUN_TEST(TestClassifyIncidentMapsAlreadyInitializedCorrectly)
+  RUN_TEST(TestClassifyIncidentMapsNotInitializedCorrectly)
+  RUN_TEST(TestClassifyIncidentMapsNotImplementedCorrectly)
+  RUN_TEST(TestClassifyIncidentUnmappedErrorFallsToUnknown)
+  RUN_TEST(TestClassifyIncidentFromDriverSnapshot)
   return EXIT_SUCCESS;
 }
 

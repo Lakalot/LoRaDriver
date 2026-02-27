@@ -25,7 +25,7 @@ unsupported profile and startup phase failures are operationally diagnosable wit
 | Code  | Category            | Probable Causes                                      | Escalation     |
 |-------|---------------------|------------------------------------------------------|----------------|
 | 1000  | `kTimeoutRelated`   | SPI timeout, RX/TX timeout, IRQ not received         | Support L1     |
-| 2000  | `kIrqAnomaly`       | IRQ storm, missed IRQ, DIO routing mismatch          | Engineering    |
+| 2000  | `kIrqAnomaly`       | IRQ storm, missed IRQ, DIO routing mismatch (reserved V1-bis) | Engineering    |
 | 3000  | `kConfigError`      | Invalid config, unsupported profile, band mismatch   | Support L2     |
 | 4000  | `kRuntimeTransition`| Illegal FSM state, recovery failure                  | Engineering    |
 | 5000  | `kHardwareFault`    | SPI failure, chip not responding                     | Hardware Team  |

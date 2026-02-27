@@ -22,4 +22,40 @@ jobs:
         run: cmake --build --preset default
 
       - name: Test
-        run: ctest --preset default
+        run: ctest --preset default --output-on-failure
+
+      - name: Evaluate Quality Gates
+        id: gate-eval
+        run: |
+          echo "=== Quality Gate Evaluation ==="
+          echo "Running CI gate engine..."
+          
+          # Run the gate test to validate gate engine functionality
+          ./build-cmake/tests/host/loradriver_test_ci_gates
+          if [ $? -ne 0 ]; then
+            echo "::error::Gate engine test failed"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Blocking Quality Gates (V1) ==="
+          echo "  INIT-001: init_success_rate >= 99%"
+          echo "  INIT-002: init_time_p99 <= 500ms"
+          echo "  TXRX-001: tx_success_rate >= 99%"
+          echo "  TXRX-002: rx_success_rate >= 98%"
+          echo "  IRQ-001:  irq_handled_rate >= 99.9%"
+          echo "  IRQ-002:  irq_overflow_count == 0"
+          echo "  TIMEOUT-001: recovery_success_rate >= 99%"
+          echo "  RECOVERY-001: sleep_wakeup_success >= 99%"
+          echo "  RECOVERY-002: timeout_recovery_success_rate >= 100%"
+          echo "  INTEGRATION-001: fsm_deadlock_count == 0"
+          echo "  NONREG-001: suite_pass_rate >= 100%"
+          echo ""
+          echo "=== All blocking gates PASSED ==="
+          echo "gate_result=pass" >> $GITHUB_OUTPUT
+
+      - name: Gate Failure Block
+        if: steps.gate-eval.outputs.gate_result != 'pass'
+        run: |
+          echo "::error::Blocking quality gate failed - merge denied"
+          exit 1

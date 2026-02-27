@@ -142,6 +142,7 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 4, config);
   }
 
+  updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 

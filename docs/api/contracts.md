@@ -227,6 +227,61 @@ The onboarding baseline is intentionally strict so teams can integrate without d
 - No event is emitted during shutdown; this is intentional to avoid callback complexity during teardown.
 - After shutdown, driver must be re-initialized via `begin()` before any TX/RX operations.
 
+## Incident Classification Contract (V1)
+
+### Classification API
+
+- `classifyIncident(const IncidentSnapshot& snapshot)` returns an `IncidentClassification` struct.
+- Classification is **deterministic**: same snapshot always produces identical classification.
+- Classification does NOT mutate runtime state (read-only operation outside FSM authority).
+
+### Types
+
+- `IncidentCategory`: Stable `uint16_t` enum with fixed numeric codes for backward-compatible trend analysis.
+  - `kTimeoutRelated` (1000): SPI timeout, RX/TX timeout, IRQ not received
+  - `kIrqAnomaly` (2000): Reserved for V1-bis (IRQ storm, missed IRQ, DIO routing mismatch)
+  - `kConfigError` (3000): Invalid config, unsupported profile, band mismatch
+  - `kRuntimeTransition` (4000): Illegal FSM state, recovery failure
+  - `kHardwareFault` (5000): SPI failure, chip not responding
+  - `kUnknown` (9000): Uncategorized or unmapped error codes
+
+- `IncidentSeverity`: Stable `uint8_t` enum.
+  - `kInfo` (0): Normal operation events, log only
+  - `kWarning` (1): Recoverable errors, 24h response
+  - `kCritical` (2): Unrecoverable, 4h response
+
+- `EscalationPath`: Stable `uint8_t` enum for ownership routing.
+  - `kSupportL1` (0): First-line support
+  - `kSupportL2` (1): Advanced support, configuration issues
+  - `kEngineering` (2): Development team
+  - `kHardwareTeam` (3): Hardware team
+
+- `IncidentClassification`: Fixed-size struct with:
+  - `taxonomy_version_major`, `taxonomy_version_minor`: Taxonomy evolution tracking
+  - `category`: Incident category from `IncidentCategory`
+  - `severity`: Incident severity from `IncidentSeverity`
+  - `escalation_path`: Ownership routing from `EscalationPath`
+  - `suggested_playbook[32]`: Null-terminated fixed-size playbook name
+
+### Helper Functions
+
+- `getIncidentCategoryName(IncidentCategory)`: Returns string name for category.
+- `getIncidentSeverityName(IncidentSeverity)`: Returns string name for severity.
+- `getEscalationPathName(EscalationPath)`: Returns string name for escalation path.
+- `IncidentClassification::categoryToString()`: Member convenience for category name.
+- `IncidentClassification::severityToString()`: Member convenience for severity name.
+- `IncidentClassification::escalationToString()`: Member convenience for escalation path name.
+
+### Error-to-Category Mapping
+
+All `LoRaError` codes are mapped deterministically. Unmapped or future error codes fall to `kUnknown` with `kWarning` severity. See ADR 0001 for the complete mapping table.
+
+### Backward Compatibility
+
+- Category codes use stable numeric values; existing codes are never reused.
+- Taxonomy version field tracks schema evolution.
+- New categories must use new code ranges (see reserved ranges in `incident_classification.hpp`).
+
 ## Power Lifecycle Events (V1)
 
 - `kSleep`: Emitted after successful transition to low-power Idle state

@@ -1,0 +1,176 @@
+# CI Quality Gate Rules Configuration
+# Version: 1.0.0
+# Generated: 2026-02-26
+# 
+# This file defines the blocking quality gates for LoRaDriver releases.
+# Gates are evaluated by the CiGateEngine during CI pipeline execution.
+#
+# Severity Levels:
+#   - blocking: Merge/release denied on failure
+#   - warning: Logged but does not block
+#   - advisory: Informational only
+#
+# Categories:
+#   - init: Radio initialization scenarios
+#   - txrx: Transmission/reception scenarios
+#   - irq: IRQ handling scenarios
+#   - timeout: Timeout and recovery scenarios
+#   - recovery: Sleep/wakeup recovery scenarios
+#   - integration: Cross-cutting integration scenarios
+
+gates:
+  - id: INIT-001
+    category: init
+    severity: blocking
+    threshold:
+      metric: init_success_rate
+      operator: ">="
+      value: 99.0
+      unit: percent
+    description: "Radio init success rate must be >= 99%"
+
+  - id: INIT-002
+    category: init
+    severity: blocking
+    threshold:
+      metric: init_time_p99
+      operator: "<="
+      value: 500
+      unit: ms
+    description: "Init latency P99 must be <= 500ms"
+
+  - id: TXRX-001
+    category: txrx
+    severity: blocking
+    threshold:
+      metric: tx_success_rate
+      operator: ">="
+      value: 99.0
+      unit: percent
+    description: "TX success rate must be >= 99%"
+
+  - id: TXRX-002
+    category: txrx
+    severity: blocking
+    threshold:
+      metric: rx_success_rate
+      operator: ">="
+      value: 98.0
+      unit: percent
+    description: "RX success rate must be >= 98%"
+
+  - id: IRQ-001
+    category: irq
+    severity: blocking
+    threshold:
+      metric: irq_handled_rate
+      operator: ">="
+      value: 99.9
+      unit: percent
+    description: "IRQ handling rate must be >= 99.9%"
+
+  - id: IRQ-002
+    category: irq
+    severity: blocking
+    threshold:
+      metric: irq_overflow_count
+      operator: "=="
+      value: 0
+      unit: count
+    description: "No IRQ overflow allowed"
+
+  - id: TIMEOUT-001
+    category: timeout
+    severity: blocking
+    threshold:
+      metric: recovery_success_rate
+      operator: ">="
+      value: 99.0
+      unit: percent
+    description: "Timeout recovery rate must be >= 99%"
+
+  - id: RECOVERY-001
+    category: recovery
+    severity: blocking
+    threshold:
+      metric: sleep_wakeup_success
+      operator: ">="
+      value: 99.0
+      unit: percent
+    description: "Sleep/wakeup recovery must be >= 99%"
+
+  - id: INTEGRATION-001
+    category: integration
+    severity: blocking
+    threshold:
+      metric: fsm_deadlock_count
+      operator: "=="
+      value: 0
+      unit: count
+    description: "No FSM deadlock allowed"
+
+  - id: RECOVERY-002
+    category: recovery
+    severity: blocking
+    threshold:
+      metric: timeout_recovery_success_rate
+      operator: ">="
+      value: 100
+      unit: percent
+    description: "All validated profiles must have timeout recovery evidence"
+
+  - id: NONREG-001
+    category: integration
+    severity: blocking
+    threshold:
+      metric: suite_pass_rate
+      operator: ">="
+      value: 100
+      unit: percent
+    description: "All non-regression cases must pass"
+
+# Channel Policies
+# Defines which gates are required for each release channel
+channels:
+  regular:
+    required_gates:
+      - INIT-001
+      - INIT-002
+      - TXRX-001
+      - TXRX-002
+      - IRQ-001
+      - IRQ-002
+      - TIMEOUT-001
+      - RECOVERY-001
+      - RECOVERY-002
+      - INTEGRATION-001
+      - NONREG-001
+    allow_waivers: true
+    waiver_approvers:
+      - release-owner
+      - tech-lead
+
+  hotfix:
+    required_gates:
+      - INIT-001
+      - INIT-002
+      - TXRX-001
+      - TXRX-002
+      - IRQ-001
+      - IRQ-002
+      - TIMEOUT-001
+      - RECOVERY-001
+      - RECOVERY-002
+      - INTEGRATION-001
+      - NONREG-001
+    allow_waivers: true
+    waiver_approvers:
+      - release-owner
+      - tech-lead
+      - incident-commander
+
+# Waiver Configuration
+waivers:
+  max_expiry_hours: 72
+  require_justification: true
+  audit_retention_days: 365

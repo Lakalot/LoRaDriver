@@ -12,7 +12,12 @@ enum class LoRaError {
   kTimeoutRecoveryFailure,
   kAlreadyInitialized,
   kNotInitialized,
-  kNotImplemented
+  kNotImplemented,
+  kMissingRecoveryEvidence,
+  kNonRegressionFailed,
+  kGateFailed,
+  kWaiverExpired,
+  kUnknownGateId
 };
 
 }  // namespace loradriver

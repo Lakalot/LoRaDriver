@@ -17,6 +17,9 @@ add_library(loradriver STATIC
   src/platform/arduino/arduino_stub.cpp
   src/infra/infra_stub.cpp
   src/internal/internal_stub.cpp
+  src/validation/profile_qualification.cpp
+  src/validation/ci_gates.cpp
+  src/validation/non_regression.cpp
 )
 
 target_include_directories(loradriver

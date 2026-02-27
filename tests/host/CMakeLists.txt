@@ -16,3 +16,33 @@ add_test(
   NAME host_smoke
   COMMAND loradriver_host_smoke
 )
+
+add_executable(loradriver_test_profile_qualification
+  test_profile_qualification.cpp
+)
+
+target_link_libraries(loradriver_test_profile_qualification
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME profile_qualification
+  COMMAND loradriver_test_profile_qualification
+)
+
+add_executable(loradriver_test_ci_gates
+  test_ci_gates.cpp
+)
+
+target_link_libraries(loradriver_test_ci_gates
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME ci_gates
+  COMMAND loradriver_test_ci_gates
+)
+
+add_subdirectory(non_regression)
