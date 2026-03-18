@@ -221,11 +221,15 @@ All status changes are logged with:
 ### Pre-Release Checks
 
 ```bash
-# Generate qualification report
-./build/tests/host/loradriver_test_profile_qualification
+# Configure + build with presets
+cmake --preset default
+cmake --build --preset default
 
-# Run CI gate tests
-./build/tests/host/loradriver_test_ci_gates
+# Run full host suite
+ctest --preset default --output-on-failure
+
+# Run gate-focused checks only (used by CI quality-gate step)
+ctest --preset default --tests-regex "^(ci_gates|ota_gate)$" --output-on-failure
 
 # Check all validated profiles pass
 # Returns 0 if all gates pass, non-zero otherwise
@@ -353,6 +357,115 @@ size_t count = ArtifactRegistry::getExpiredArtifacts(expired, current_timestamp)
 bool purged = ArtifactRegistry::purgeExpired(current_timestamp);
 ```
 
+---
+
+## OTA Rollout Health Gating (Story 4.1)
+
+OTA rollout decisions are gated by radio health KPIs from early deployment wave telemetry.
+The `OtaGateEngine` produces deterministic, machine-readable decisions with attached evidence.
+
+### Decision Values
+
+| Decision | Meaning |
+|----------|---------|
+| `kAllow` | All KPI gates pass; no negative trend signal; rollout may expand |
+| `kHold`  | Data quality issue or trend risk detected; manual escalation required |
+| `kBlock` | Blocking KPI threshold violated; rollout expansion denied |
+
+### Minimum Required Telemetry Fields
+
+All fields must be present and valid; missing/invalid fields trigger `kHold`:
+
+| Field | Type | Validation |
+|-------|------|-----------|
+| `firmware_version` | char[16] | Non-empty string |
+| `radio_family` | char[16] | Non-empty string (e.g. "SX1276") |
+| `active_band` | char[8] | Non-empty string (e.g. "433", "868") |
+| `init_failure_rate` | float % | In range [0.0, 100.0] |
+| `timeout_events` | uint32 count | Any value |
+| `irq_overflow_events` | uint32 count | Any value |
+| `tx_success_rate` | float % | In range [0.0, 100.0] |
+| `rx_success_rate` | float % | In range [0.0, 100.0] |
+| `sample_timestamp_utc` | uint32 epoch | Non-zero |
+
+### OTA Gate Evaluation — CI Threshold Reuse
+
+`OtaGateEngine` reuses existing `CiGateEngine` thresholds without duplication:
+
+| CI Gate ID | OTA Metric Mapping | Decision on Failure |
+|------------|-------------------|---------------------|
+| INIT-001 | `init_success_rate = 100 - init_failure_rate` ≥ 99% | `kBlock` |
+| TXRX-001 | `tx_success_rate` ≥ 99% | `kBlock` |
+| TXRX-002 | `rx_success_rate` ≥ 98% | `kBlock` |
+| IRQ-002 | `irq_overflow_events` == 0 | `kBlock` |
+
+### KPI Trend Detection
+
+If baseline values are provided (non-zero), degradation beyond the threshold triggers `kHold`:
+
+- **Threshold**: 2.0 percentage-point drop from baseline
+- **Applicable KPIs**: `tx_success_rate`, `rx_success_rate`, `init_failure_rate`
+- **Basis**: Optional baseline fields in `OtaTelemetryInput`; zero = no baseline, skip check
+
+### OTA Gate API
+
+```cpp
+#include <loradriver/ota_gate.hpp>
+
+// Populate telemetry from deployment wave data
+loradriver::OtaTelemetryInput telemetry{};
+std::strncpy(telemetry.firmware_version, "1.2.3", sizeof(telemetry.firmware_version) - 1);
+std::strncpy(telemetry.radio_family, "SX1276", sizeof(telemetry.radio_family) - 1);
+std::strncpy(telemetry.active_band, "868", sizeof(telemetry.active_band) - 1);
+telemetry.init_failure_rate   = 0.3f;   // 99.7% success
+telemetry.tx_success_rate     = 99.5f;
+telemetry.rx_success_rate     = 98.5f;
+telemetry.irq_overflow_events = 0;
+telemetry.timeout_events      = 0;
+telemetry.sample_timestamp_utc = getCurrentTimestampUtc();
+
+// Optional: set baselines for trend analysis
+telemetry.baseline_tx_success_rate = 99.8f;
+telemetry.baseline_rx_success_rate = 98.8f;
+
+// Evaluate rollout gate
+loradriver::OtaDecisionRationale rationale{};
+loradriver::OtaRolloutDecision decision = loradriver::OtaGateEngine::evaluate(telemetry, rationale);
+
+switch (decision) {
+  case loradriver::OtaRolloutDecision::kAllow:
+    // Proceed with rollout expansion
+    break;
+  case loradriver::OtaRolloutDecision::kHold:
+    // Escalate with rationale.reason; check rationale.quality_issue / trend_risk
+    break;
+  case loradriver::OtaRolloutDecision::kBlock:
+    // Deny expansion; rationale.failed_gate_ids contains evidence
+    break;
+}
+
+// Artifact ID available for audit trail
+// rationale.artifact_id links to ArtifactRegistry entry
+```
+
+### Governance Integration
+
+- Telemetry decision artifacts registered as `kTelemetryBaseline` with 180-day retention
+- Blocked decisions include gate IDs, actual values, and threshold values in rationale
+- Artifact IDs in `OtaDecisionRationale` link to `ArtifactRegistry` for incident review/audit
+- Both regular and hotfix release channels apply identical OTA rollout gate policy
+
+### Escalation on Hold/Block
+
+When `kHold` or `kBlock` is returned:
+1. `rationale.reason` — human-readable explanation for escalation notification
+2. `rationale.failed_gate_ids[]` — machine-readable gate IDs that failed
+3. `rationale.failed_gate_actuals[]` / `rationale.failed_gate_thresholds[]` — metric evidence
+4. `rationale.artifact_id` — registered artifact ID for traceability chain
+5. `rationale.quality_issue` / `rationale.trend_risk` / `rationale.stale_data` — decision flags
+
+---
+
 ## References
 
 - Profile Test Matrix: [test-matrix.md](./test-matrix.md)
@@ -364,6 +477,7 @@ bool purged = ArtifactRegistry::purgeExpired(current_timestamp);
 - ADR-0007: Artifact Traceability
 - API: `include/loradriver/profile_qualification.hpp`
 - API: `include/loradriver/ci_gates.hpp`
+- API: `include/loradriver/ota_gate.hpp`
 - API: `include/loradriver/artifact_governance.hpp`
 - API: `include/loradriver/versioning.hpp`
 - Configuration: `tools/ci/gate_rules.yaml`

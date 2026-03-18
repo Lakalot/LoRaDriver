@@ -169,6 +169,56 @@ channels:
       - tech-lead
       - incident-commander
 
+# OTA Rollout Gate Policy (Story 4.1)
+# =====================================
+# Decisions evaluated by OtaGateEngine from field telemetry snapshots.
+# Reuses CI gate thresholds (INIT-001, TXRX-001, TXRX-002, IRQ-002) for KPI checks.
+# Additional: telemetry data-quality checks and KPI trend degradation detection.
+#
+# OTA Decision Values:
+#   - allow: metrics satisfy thresholds; no negative trend signal
+#   - hold:  data quality issue or trend degradation; requires manual escalation
+#   - block: blocking CI threshold violated; rollout expansion denied
+#
+# Minimum required telemetry fields (missing → hold):
+#   firmware_version, radio_family, active_band,
+#   init_failure_rate, timeout_events, irq_overflow_events,
+#   tx_success_rate, rx_success_rate, sample_timestamp_utc
+
+ota_rollout:
+  # Gates reused from CI policy (same thresholds, same IDs — no duplication)
+  reused_ci_gates:
+    - gate_id: INIT-001
+      metric_mapping: "init_success_rate = 100 - init_failure_rate"
+      decision_on_fail: block
+    - gate_id: TXRX-001
+      metric_mapping: "tx_success_rate (direct)"
+      decision_on_fail: block
+    - gate_id: TXRX-002
+      metric_mapping: "rx_success_rate (direct)"
+      decision_on_fail: block
+    - gate_id: IRQ-002
+      metric_mapping: "irq_overflow_events (cast to float)"
+      decision_on_fail: block
+
+  # OTA-specific quality and trend policy
+  quality_policy:
+    missing_field_decision: hold
+    invalid_range_decision: hold
+    stale_timestamp_decision: hold  # sample_timestamp_utc == 0
+
+  trend_policy:
+    degradation_threshold_pp: 2.0   # percentage-point drop from baseline triggers hold
+    applicable_metrics:
+      - tx_success_rate
+      - rx_success_rate
+      - init_failure_rate   # increase in failure rate = degradation
+    decision_on_trend_risk: hold
+
+  # Artifact retention for OTA telemetry evidence
+  telemetry_artifact_type: kTelemetryBaseline
+  retention_days: 180
+
 # Waiver Configuration
 waivers:
   max_expiry_hours: 72

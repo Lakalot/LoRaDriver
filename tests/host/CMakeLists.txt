@@ -47,6 +47,20 @@ add_test(
 
 add_subdirectory(non_regression)
 
+add_executable(loradriver_test_ota_gate
+  test_ota_gate.cpp
+)
+
+target_link_libraries(loradriver_test_ota_gate
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME ota_gate
+  COMMAND loradriver_test_ota_gate
+)
+
 add_executable(loradriver_test_artifact_registry
   test_artifact_registry.cpp
 )

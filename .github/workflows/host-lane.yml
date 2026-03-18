@@ -28,30 +28,43 @@ jobs:
         id: gate-eval
         run: |
           echo "=== Quality Gate Evaluation ==="
-          echo "Running CI gate engine..."
-          
-          # Run the gate test to validate gate engine functionality
-          ./build-cmake/tests/host/loradriver_test_ci_gates
-          if [ $? -ne 0 ]; then
-            echo "::error::Gate engine test failed"
+
+          # Run CI gate engine deterministic tests (gate rule + threshold verification)
+          if ! ctest --preset default --tests-regex "^ci_gates$" --output-on-failure; then
+            echo "::error::CI gate engine test failed - blocking gates not verified"
             exit 1
           fi
-          
+          echo "CI gate engine: PASSED"
+
+          # Run OTA rollout gate deterministic tests (telemetry quality, trend, block/hold/allow)
+          if ! ctest --preset default --tests-regex "^ota_gate$" --output-on-failure; then
+            echo "::error::OTA gate engine test failed - rollout decision logic not verified"
+            exit 1
+          fi
+          echo "OTA gate engine: PASSED"
+
           echo ""
-          echo "=== Blocking Quality Gates (V1) ==="
-          echo "  INIT-001: init_success_rate >= 99%"
-          echo "  INIT-002: init_time_p99 <= 500ms"
-          echo "  TXRX-001: tx_success_rate >= 99%"
-          echo "  TXRX-002: rx_success_rate >= 98%"
-          echo "  IRQ-001:  irq_handled_rate >= 99.9%"
-          echo "  IRQ-002:  irq_overflow_count == 0"
-          echo "  TIMEOUT-001: recovery_success_rate >= 99%"
-          echo "  RECOVERY-001: sleep_wakeup_success >= 99%"
-          echo "  RECOVERY-002: timeout_recovery_success_rate >= 100%"
-          echo "  INTEGRATION-001: fsm_deadlock_count == 0"
-          echo "  NONREG-001: suite_pass_rate >= 100%"
+          echo "=== Blocking Quality Gates Evaluated (V1) ==="
+          echo "  INIT-001:        init_success_rate >= 99%        [evaluated by CI + OTA gate engines]"
+          echo "  INIT-002:        init_time_p99 <= 500ms          [evaluated by CI gate engine]"
+          echo "  TXRX-001:        tx_success_rate >= 99%          [evaluated by CI + OTA gate engines]"
+          echo "  TXRX-002:        rx_success_rate >= 98%          [evaluated by CI + OTA gate engines]"
+          echo "  IRQ-001:         irq_handled_rate >= 99.9%       [evaluated by CI gate engine]"
+          echo "  IRQ-002:         irq_overflow_count == 0         [evaluated by CI + OTA gate engines]"
+          echo "  TIMEOUT-001:     recovery_success_rate >= 99%    [evaluated by CI gate engine]"
+          echo "  RECOVERY-001:    sleep_wakeup_success >= 99%     [evaluated by CI gate engine]"
+          echo "  RECOVERY-002:    timeout_recovery >= 100%        [evaluated by CI gate engine]"
+          echo "  INTEGRATION-001: fsm_deadlock_count == 0         [evaluated by CI gate engine]"
+          echo "  NONREG-001:      suite_pass_rate >= 100%         [evaluated by CI gate engine]"
           echo ""
-          echo "=== All blocking gates PASSED ==="
+          echo "=== OTA Rollout Gate Policy ==="
+          echo "  Rollout decisions: allow / hold / block"
+          echo "  Data quality checks: firmware_version, radio_family, active_band,"
+          echo "    init_failure_rate, timeout_events, irq_overflow_events,"
+          echo "    tx_success_rate, rx_success_rate, sample_timestamp_utc"
+          echo "  Trend degradation threshold: 2pp drop from baseline triggers hold"
+          echo ""
+          echo "All gate engine tests executed and PASSED."
           echo "gate_result=pass" >> $GITHUB_OUTPUT
 
       - name: Gate Failure Block
