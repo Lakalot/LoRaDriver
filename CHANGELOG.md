@@ -44,6 +44,35 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - ADR 0001 extended with incident classification taxonomy documentation.
 - Host tests for classification determinism, category code stability, severity mapping, and integration with driver snapshot capture.
 
+- `ProfileQualificationMatrix` for hardware profile qualification governance (Story 3.1).
+- `ProfileGovernance` class for status change proposals with audit trail.
+- `QualificationReport` struct and serializer for release qualification evidence.
+- V1 validated profile count: 8 (SX1276/SX1278 x 433/868 x DIO0/DIO0+DIO1).
+- ADR 0004: Profile Qualification Governance Model.
+
+- `CiGateEngine` for blocking CI quality gates with Go/No-Go thresholds (Story 3.2).
+- `GateReport` struct for gate evaluation results and serialization.
+- `GateWaiver` workflow for temporary gate bypass with approval tracking.
+- 11 V1 blocking quality gates for init, TX/RX, IRQ, timeout, recovery, and integration.
+- Release channel policies (Regular/Hotfix) with waiver approver lists.
+- ADR 0005: Go/No-Go Governance Model.
+
+- `NonRegressionSuite` and `NonRegressionCase` structs for deterministic baseline validation (Story 3.3).
+- `RecoveryEvidenceCollector` for timeout and sleep/wakeup recovery evidence.
+- `IncidentPatternMapper` for incident-to-regression-case mapping.
+- `SuiteExecutionReport` for regression test results.
+- ADR 0006: Non-Regression Suite Design.
+
+- `ArtifactRegistry` for artifact tracking with retention policy enforcement (Story 3.4).
+- `ArtifactType` enum with 8 artifact types (validation reports, incident evidence, recovery proofs, etc.).
+- `RetentionPolicy` struct with V1 defaults (90-180 days).
+- `TraceabilityEngine` for build→test→release chain linking and RCA support.
+- `ChangelogManager` for SemVer-compliant changelog with validation.
+- `SemVerVersion` struct with parsing, comparison, and formatting.
+- `ChangelogEntry` struct with breaking change and security fix validation.
+- ADR 0007: Artifact Traceability.
+- Documentation: `docs/governance/artifact-retention.md`, `docs/governance/versioning-policy.md`.
+
 ### Fixed
 
 - `begin()` now preserves initialized runtime state when called again and returns `kAlreadyInitialized` without destructive reset.

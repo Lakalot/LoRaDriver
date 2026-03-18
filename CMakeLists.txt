@@ -20,6 +20,9 @@ add_library(loradriver STATIC
   src/validation/profile_qualification.cpp
   src/validation/ci_gates.cpp
   src/validation/non_regression.cpp
+  src/governance/artifact_registry.cpp
+  src/governance/changelog_manager.cpp
+  src/governance/traceability_engine.cpp
 )
 
 target_include_directories(loradriver

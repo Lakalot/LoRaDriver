@@ -1,8 +1,24 @@
 #include "loradriver/ci_gates.hpp"
+#include "loradriver/artifact_governance.hpp"
 #include "loradriver/profile_qualification.hpp"
 #include <cstring>
+#include <cstdio>
 
 namespace loradriver {
+
+namespace {
+void registerGateReportArtifact(const GateReport& report) {
+  ArtifactMetadata metadata{};
+  metadata.type = ArtifactType::kGateReport;
+  metadata.created_timestamp = 1;
+  metadata.retention_days = 90;
+  std::snprintf(metadata.linked_version, sizeof(metadata.linked_version), "%u.%u.%u",
+                report.report_major, report.report_minor, report.report_patch);
+  std::strncpy(metadata.source_module, "CiGateEngine", sizeof(metadata.source_module) - 1);
+  metadata.source_module[sizeof(metadata.source_module) - 1] = '\0';
+  (void)ArtifactRegistry::registerArtifact(metadata);
+}
+}  // namespace
 
 std::array<GateWaiver, CiGateEngine::kMaxWaivers> CiGateEngine::waivers_ = {};
 size_t CiGateEngine::waiver_count_ = 0;
@@ -172,6 +188,7 @@ void CiGateEngine::evaluateAllGates(const float* values, size_t values_count,
   }
 
   out_report.release_blocked = isReleaseBlocked(out_report);
+  registerGateReportArtifact(out_report);
 }
 
 GateResult CiGateEngine::evaluateForProfile(const HardwareProfile& profile,
@@ -226,8 +243,10 @@ uint32_t CiGateEngine::requestWaiver(const char* gate_id, const char* justificat
   }
 
   GateWaiver& waiver = waivers_[waiver_count_];
-  std::strcpy(waiver.gate_id, gate_id);
-  std::strcpy(waiver.justification, justification);
+  std::strncpy(waiver.gate_id, gate_id, sizeof(waiver.gate_id) - 1);
+  waiver.gate_id[sizeof(waiver.gate_id) - 1] = '\0';
+  std::strncpy(waiver.justification, justification, sizeof(waiver.justification) - 1);
+  waiver.justification[sizeof(waiver.justification) - 1] = '\0';
   waiver.waiver_id = next_waiver_id_++;
   waiver.is_approved = 0;
   waiver.is_expired = 0;
@@ -249,7 +268,8 @@ bool CiGateEngine::approveWaiver(uint32_t waiver_id, const char* approver,
   for (size_t i = 0; i < waiver_count_; ++i) {
     if (waivers_[i].waiver_id == waiver_id) {
       waivers_[i].is_approved = 1;
-      std::strcpy(waivers_[i].approver, approver);
+      std::strncpy(waivers_[i].approver, approver, sizeof(waivers_[i].approver) - 1);
+      waivers_[i].approver[sizeof(waivers_[i].approver) - 1] = '\0';
       waivers_[i].approved_by_id = approver_id;
       return true;
     }

@@ -1,4 +1,5 @@
 #include "non_regression.hpp"
+#include "loradriver/artifact_governance.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -260,6 +261,16 @@ RecoveryEvidence RecoveryEvidenceCollector::collectTimeoutRecoveryEvidence(
     evidence_count_++;
   }
 
+  ArtifactMetadata metadata{};
+  metadata.type = ArtifactType::kRecoveryProof;
+  metadata.created_timestamp = 1;
+  metadata.retention_days = 90;
+  metadata.linked_profile_count = 1;
+  metadata.linked_profiles[0] = profile;
+  std::strncpy(metadata.source_module, "RecoveryEvidenceCollector", sizeof(metadata.source_module) - 1);
+  metadata.source_module[sizeof(metadata.source_module) - 1] = '\0';
+  (void)ArtifactRegistry::registerArtifact(metadata);
+
   return evidence;
 }
 
@@ -291,6 +302,16 @@ RecoveryEvidence RecoveryEvidenceCollector::collectSleepWakeupEvidence(
     collected_evidence_[evidence_count_] = evidence;
     evidence_count_++;
   }
+
+  ArtifactMetadata metadata{};
+  metadata.type = ArtifactType::kRecoveryProof;
+  metadata.created_timestamp = 1;
+  metadata.retention_days = 90;
+  metadata.linked_profile_count = 1;
+  metadata.linked_profiles[0] = profile;
+  std::strncpy(metadata.source_module, "RecoveryEvidenceCollector", sizeof(metadata.source_module) - 1);
+  metadata.source_module[sizeof(metadata.source_module) - 1] = '\0';
+  (void)ArtifactRegistry::registerArtifact(metadata);
 
   return evidence;
 }
@@ -344,6 +365,14 @@ size_t RecoveryEvidenceCollector::collectAllValidatedEvidence(
     out_evidence[collected] = combined;
     collected++;
   }
+
+  ArtifactMetadata matrix_metadata{};
+  matrix_metadata.type = ArtifactType::kTestMatrix;
+  matrix_metadata.created_timestamp = 1;
+  matrix_metadata.retention_days = 90;
+  std::strncpy(matrix_metadata.source_module, "NonRegressionExecutor", sizeof(matrix_metadata.source_module) - 1);
+  matrix_metadata.source_module[sizeof(matrix_metadata.source_module) - 1] = '\0';
+  (void)ArtifactRegistry::registerArtifact(matrix_metadata);
 
   return collected;
 }

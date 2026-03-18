@@ -17,7 +17,14 @@ enum class LoRaError {
   kNonRegressionFailed,
   kGateFailed,
   kWaiverExpired,
-  kUnknownGateId
+  kUnknownGateId,
+  kArtifactRegistrationFailed,
+  kInvalidVersion,
+  kTraceIntegrityBroken,
+  kChangelogValidationFailed,
+  kArtifactNotFound,
+  kLinkFailed,
+  kRegistryFull
 };
 
 }  // namespace loradriver

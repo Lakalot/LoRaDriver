@@ -2,8 +2,11 @@
 .pioenvs
 .piolibdeps
 build/
+build-cmake/
+build-review/
 Testing/
 compile_commands.json
+nul
 
 # BMAD generated artifacts and module sources
 _bmad/

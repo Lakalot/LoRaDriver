@@ -251,3 +251,119 @@ QualificationReportSerializer::serializeTo(report, buffer, sizeof(buffer));
 - API: `include/loradriver/profile_qualification.hpp`
 - API: `include/loradriver/ci_gates.hpp`
 - Configuration: `tools/ci/gate_rules.yaml`
+
+---
+
+## Traceability Requirements (Story 3.4)
+
+All release artifacts must be registered and linked for audit and RCA support.
+
+### Artifact Registration
+
+```cpp
+#include <loradriver/artifact_governance.hpp>
+
+// Register a validation report artifact
+ArtifactMetadata metadata = {
+    .type = ArtifactType::kValidationReport,
+    .created_timestamp = getCurrentTimestamp(),
+    .expires_timestamp = getCurrentTimestamp() + (90 * 86400),
+    .retention_days = 90
+};
+std::strncpy(metadata.linked_version, "1.0.0", sizeof(metadata.linked_version) - 1);
+std::strncpy(metadata.source_module, "ProfileQualificationMatrix", sizeof(metadata.source_module) - 1);
+
+const char* artifact_id = ArtifactRegistry::registerArtifact(metadata);
+```
+
+### Artifact Types
+
+| Type | Description | Retention | Auto-Delete |
+|------|-------------|-----------|-------------|
+| kValidationReport | Profile qualification reports | 90-180 days | Yes |
+| kIncidentEvidence | Field incident snapshots | 90-180 days | Yes |
+| kRecoveryProof | Recovery evidence | 90-180 days | Yes |
+| kTestMatrix | Non-regression results | 90-180 days | Yes |
+| kGateReport | CI gate evaluations | 90-180 days | Yes |
+| kTelemetryBaseline | Radio KPI baselines | 180-365 days | No |
+| kBuildLog | Build artifacts | 30-90 days | Yes |
+| kReleaseManifest | Release metadata | 365-730 days | No |
+
+### Trace Chain Requirements
+
+All releases must have complete trace chains:
+
+```cpp
+#include <loradriver/versioning.hpp>
+
+// Link build → test → release
+TraceabilityEngine::linkBuildToTest(build_id, test_report_id);
+TraceabilityEngine::linkTestToRelease(test_report_id, release_id);
+
+// Validate chain integrity
+bool valid = TraceabilityEngine::validateTraceIntegrity(version);
+
+// Get full chain for RCA
+std::array<TraceabilityLink, 16> chain;
+size_t count = TraceabilityEngine::getFullTraceChain(artifact_id, chain);
+```
+
+### Changelog Requirements
+
+All releases must have valid changelog entries:
+
+```cpp
+#include <loradriver/versioning.hpp>
+
+ChangelogEntry entry = {
+    .version = {1, 0, 0, {}, {}},
+    .date = getCurrentTimestamp(),
+    .category = ChangeCategory::kFeature,
+    .description = "Initial V1 release with governance"
+};
+
+LoRaError result = ChangelogManager::addEntry(entry);
+if (result != LoRaError::kOk) {
+    // Validation failed
+}
+
+// Validate changelog before release
+bool valid = ChangelogManager::validateChangelog();
+```
+
+### Release Artifact Checklist
+
+- [ ] All gate reports registered as `kGateReport` artifacts
+- [ ] Profile qualification reports registered as `kValidationReport` artifacts
+- [ ] Non-regression results registered as `kTestMatrix` artifacts
+- [ ] Recovery evidence registered as `kRecoveryProof` artifacts
+- [ ] Build → Test → Release trace chain complete
+- [ ] Changelog validated with all required fields
+- [ ] Breaking changes include `breaking_notes` and `migration_guide`
+- [ ] Security fixes include `issue_refs` (CVE or internal)
+
+### Retention Enforcement
+
+```cpp
+// Get expired artifacts for cleanup
+std::array<ArtifactMetadata, 32> expired;
+size_t count = ArtifactRegistry::getExpiredArtifacts(expired, current_timestamp);
+
+// Purge expired artifacts
+bool purged = ArtifactRegistry::purgeExpired(current_timestamp);
+```
+
+## References
+
+- Profile Test Matrix: [test-matrix.md](./test-matrix.md)
+- Artifact Retention Policy: [../governance/artifact-retention.md](../governance/artifact-retention.md)
+- Versioning Policy: [../governance/versioning-policy.md](../governance/versioning-policy.md)
+- ADR-0004: Profile Qualification Governance Model
+- ADR-0005: Go/No-Go Governance Model
+- ADR-0006: Non-Regression Suite Design
+- ADR-0007: Artifact Traceability
+- API: `include/loradriver/profile_qualification.hpp`
+- API: `include/loradriver/ci_gates.hpp`
+- API: `include/loradriver/artifact_governance.hpp`
+- API: `include/loradriver/versioning.hpp`
+- Configuration: `tools/ci/gate_rules.yaml`

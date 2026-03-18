@@ -1,4 +1,5 @@
 #include "loradriver/profile_qualification.hpp"
+#include "loradriver/artifact_governance.hpp"
 #include <cstdio>
 #include <cstring>
 
@@ -167,7 +168,7 @@ size_t ProfileQualificationMatrix::getTotalProfileCount() noexcept {
 }
 
 void ProfileQualificationMatrix::generateQualificationReport(QualificationReport& out_report, uint8_t major,
-                                                             uint8_t minor, uint8_t patch) noexcept {
+                                                              uint8_t minor, uint8_t patch) noexcept {
   out_report.validated_count = 0;
   out_report.secondary_count = 0;
   out_report.deferred_count = 0;
@@ -205,6 +206,15 @@ void ProfileQualificationMatrix::generateQualificationReport(QualificationReport
         break;
     }
   }
+
+  ArtifactMetadata metadata{};
+  metadata.type = ArtifactType::kValidationReport;
+  metadata.created_timestamp = 1;
+  metadata.retention_days = 90;
+  std::snprintf(metadata.linked_version, sizeof(metadata.linked_version), "%u.%u.%u", major, minor, patch);
+  std::strncpy(metadata.source_module, "ProfileQualificationMatrix", sizeof(metadata.source_module) - 1);
+  metadata.source_module[sizeof(metadata.source_module) - 1] = '\0';
+  (void)ArtifactRegistry::registerArtifact(metadata);
 }
 
 uint32_t ProfileGovernance::next_change_id_ = 1;
