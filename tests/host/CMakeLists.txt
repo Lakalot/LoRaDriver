@@ -61,6 +61,20 @@ add_test(
   COMMAND loradriver_test_ota_gate
 )
 
+add_executable(loradriver_test_rollback_governance
+  test_rollback_governance.cpp
+)
+
+target_link_libraries(loradriver_test_rollback_governance
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME rollback_governance
+  COMMAND loradriver_test_rollback_governance
+)
+
 add_executable(loradriver_test_artifact_registry
   test_artifact_registry.cpp
 )

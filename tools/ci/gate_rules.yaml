@@ -219,6 +219,86 @@ ota_rollout:
   telemetry_artifact_type: kTelemetryBaseline
   retention_days: 180
 
+# Rollback Governance Policy (Story 4.2)
+# =======================================
+# Defines when and how rollback to last-known-good baseline is triggered
+# and what evidence is required for post-incident review.
+#
+# Rollback is triggered only by kBlock OTA gate decisions (blocking threshold
+# violations). Data-quality holds (kHold + quality_issue) do NOT trigger
+# rollback — they represent potential false positives requiring manual review.
+#
+# Rollback State Machine:
+#   requested → precheck → execute → verify → complete | failed
+#
+# Precheck Requirements (fail-fast; no ambiguous branching):
+#   - target_version must be non-empty (LKG candidate registered)
+#   - radio_family must be SX1276 or SX1278 (V1 scope only)
+#   - active_band must be 433 or 868 (V1 scope only)
+#   - trigger_timestamp_utc must be non-zero
+#
+# Postcheck Requirements:
+#   - started_timestamp captured (execution state recorded)
+#   - rollback artifact registered and retrievable from ArtifactRegistry
+#   - radio_family still V1-compatible post-execution (health snapshot)
+#
+# Evidence Retention:
+#   - Rollback artifacts registered as kRecoveryProof (90–180 days)
+#   - Incident linkage via TraceabilityEngine::linkIncidentToArtifact
+#   - Timeline checkpoints: triggered, started, completed (UTC epoch)
+#   - Incident ID format: RB-{radio_family}-{active_band}-{trigger_timestamp_utc}
+
+rollback_policy:
+  # Trigger policy — which OTA decisions initiate rollback
+  trigger_conditions:
+    - decision: block
+      description: "Blocking CI threshold violated; policy-initiated rollback"
+    - decision: operator
+      description: "Manual operator decision; always triggers regardless of OTA decision"
+
+  # Conditions that must NOT trigger rollback
+  no_trigger_conditions:
+    - decision: hold
+      reason: "Data quality or trend risk — potential false positive; manual escalation only"
+    - decision: allow
+      reason: "No issue detected; rollback not warranted"
+
+  # Precheck gate requirements (any failure = rollback aborted, state → failed)
+  precheck_gates:
+    - id: RB-PRE-001
+      check: target_version_present
+      description: "LKG candidate target_version must be non-empty"
+      failure_reason: "precheck-lkg: missing target_version"
+    - id: RB-PRE-002
+      check: radio_family_v1_compatible
+      description: "radio_family must be SX1276 or SX1278"
+      failure_reason: "precheck-profile: unsupported radio_family"
+    - id: RB-PRE-003
+      check: active_band_v1_compatible
+      description: "active_band must be 433 or 868"
+      failure_reason: "precheck-band: unsupported active_band"
+    - id: RB-PRE-004
+      check: trigger_timestamp_valid
+      description: "trigger_timestamp_utc must be non-zero"
+      failure_reason: "precheck-integrity: invalid trigger timestamp"
+
+  # Postcheck gate requirements (any failure = rollback marked failed)
+  postcheck_gates:
+    - id: RB-POST-001
+      check: started_timestamp_captured
+      description: "Execution state must be recorded (started_timestamp != 0)"
+    - id: RB-POST-002
+      check: artifact_registered_and_retrievable
+      description: "kRecoveryProof artifact must exist in ArtifactRegistry"
+    - id: RB-POST-003
+      check: radio_family_health_snapshot
+      description: "radio_family and active_band still V1-compatible post-rollback (health check)"
+
+  # Artifact evidence requirements
+  artifact_type: kRecoveryProof
+  retention_days: 180
+  incident_id_format: "RB-{radio_family}-{active_band}-{trigger_timestamp_utc}"
+
 # Waiver Configuration
 waivers:
   max_expiry_hours: 72

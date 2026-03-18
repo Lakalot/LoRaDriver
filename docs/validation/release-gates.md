@@ -466,6 +466,117 @@ When `kHold` or `kBlock` is returned:
 
 ---
 
+## Last-Known-Good Rollback Execution (Story 4.2)
+
+When OTA rollout is **blocked** by health signal failure, the rollback governance engine
+provides a deterministic, evidence-producing recovery path to the last-known-good baseline.
+
+### Rollback vs. Rollout Block — Messaging Distinction
+
+| Signal | Outcome | Action |
+|--------|---------|--------|
+| `kBlock` | Rollout expansion **denied** | Trigger rollback (policy) or escalate (operator) |
+| `kHold` (quality issue) | Data quality problem | Manual escalation only — do NOT auto-rollback |
+| `kHold` (trend risk) | KPI degradation risk | Manual escalation only — do NOT auto-rollback |
+| Rollback `kComplete` | LKG baseline **restored** | Incident review; follow-up corrective actions |
+| Rollback `kFailed` | Recovery attempt **failed** | Immediate escalation with failed_step_id evidence |
+
+### Trigger Policy
+
+```cpp
+#include <loradriver/rollback_governance.hpp>
+
+loradriver::OtaDecisionRationale rationale{};
+loradriver::OtaRolloutDecision decision = loradriver::OtaGateEngine::evaluate(telemetry, rationale);
+
+// Evaluate trigger policy before initiating rollback
+if (loradriver::RollbackGovernance::evaluateTriggerPolicy(decision, rationale)) {
+  // kBlock detected: initiate policy-initiated rollback
+}
+// kHold (quality_issue or trend_risk) → do NOT rollback automatically
+```
+
+### Rollback State Machine
+
+```
+requested → precheck → execute → verify → complete
+                                        ↘ failed (at any step)
+```
+
+### Precheck Requirements (fail-fast, no ambiguous branching)
+
+| Gate | Check | Failure Reason |
+|------|-------|---------------|
+| RB-PRE-001 | `target_version` non-empty | `precheck-lkg: missing target_version` |
+| RB-PRE-002 | `radio_family` = SX1276/SX1278 | `precheck-profile: unsupported radio_family` |
+| RB-PRE-003 | `active_band` = 433/868 | `precheck-band: unsupported active_band` |
+| RB-PRE-004 | `trigger_timestamp_utc` ≠ 0 | `precheck-integrity: invalid trigger timestamp` |
+
+### Postcheck Requirements
+
+| Gate | Check | Failure Reason |
+|------|-------|---------------|
+| RB-POST-001 | `started_timestamp` ≠ 0 | `postcheck-state: started_timestamp not recorded` |
+| RB-POST-002 | Artifact in registry | `postcheck-linkage: artifact not found in registry` |
+| RB-POST-003 | `radio_family` V1-compatible | `postcheck-health: radio_family invalid post-rollback` |
+
+If incident-to-artifact linkage fails during verify/complete, rollback is marked failed with
+`failed_step_id = "verify-traceability"` and `LoRaError::kLinkFailed`.
+
+### Rollback API
+
+```cpp
+#include <loradriver/rollback_governance.hpp>
+
+// Populate rollback request with LKG candidate context
+loradriver::RollbackRequest req{};
+std::strncpy(req.target_version, "1.1.0", sizeof(req.target_version) - 1);
+std::strncpy(req.radio_family,   "SX1276", sizeof(req.radio_family) - 1);
+std::strncpy(req.active_band,    "868",    sizeof(req.active_band) - 1);
+req.trigger_reason        = loradriver::RollbackTriggerReason::kPolicyInitiated;
+req.trigger_timestamp_utc = getCurrentTimestampUtc();
+
+// Execute rollback
+loradriver::RollbackResult result{};
+loradriver::LoRaError err = loradriver::RollbackGovernance::execute(req, result);
+
+if (err == loradriver::LoRaError::kOk) {
+  // result.final_state == RollbackState::kComplete
+  // result.artifact_id — ArtifactRegistry kRecoveryProof entry for audit
+  // result.reason      — human-readable outcome
+  // result.triggered_timestamp / started_timestamp / completed_timestamp — timeline
+} else {
+  // result.final_state   == RollbackState::kFailed
+  // result.failed_step_id — which step failed: "precheck" / "execute-artifact" / "postcheck"
+  // result.reason         — deterministic failure reason
+}
+```
+
+### Evidence Requirements for Post-Incident Review
+
+- **Artifact**: `kRecoveryProof` registered in `ArtifactRegistry` with 180-day retention
+- **Traceability**: Incident linked via `TraceabilityEngine::linkIncidentToArtifact`
+  - Incident ID format: `RB-{radio_family}-{active_band}-{trigger_timestamp_utc}`
+- **Timeline**: `triggered_timestamp`, `started_timestamp`, `completed_timestamp` (UTC epoch)
+- **Failure evidence**: `failed_step_id` + `reason` identify exact failure point and cause
+
+### CI Host-Lane Test Pattern
+
+```bash
+# Run rollback governance tests (follows same ctest preset pattern as ota_gate)
+ctest --preset default --tests-regex "^rollback_governance$" --output-on-failure
+```
+
+### Incident Review Checklist
+
+- [ ] Identify rollback trigger: `OtaRolloutDecision::kBlock` with failed gate IDs from rationale
+- [ ] Confirm rollback artifact registered: `ArtifactRegistry::getArtifact(result.artifact_id)`
+- [ ] Retrieve traceability chain: `TraceabilityEngine::getFullTraceChain(incident_id, chain)`
+- [ ] Review timeline checkpoints in `RollbackResult` for end-to-end duration
+- [ ] Prioritize follow-up corrective actions based on `OtaDecisionRationale::failed_gate_ids`
+
+---
+
 ## References
 
 - Profile Test Matrix: [test-matrix.md](./test-matrix.md)
@@ -478,6 +589,7 @@ When `kHold` or `kBlock` is returned:
 - API: `include/loradriver/profile_qualification.hpp`
 - API: `include/loradriver/ci_gates.hpp`
 - API: `include/loradriver/ota_gate.hpp`
+- API: `include/loradriver/rollback_governance.hpp`
 - API: `include/loradriver/artifact_governance.hpp`
 - API: `include/loradriver/versioning.hpp`
 - Configuration: `tools/ci/gate_rules.yaml`
