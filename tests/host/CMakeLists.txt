@@ -45,6 +45,20 @@ add_test(
   COMMAND loradriver_test_ci_gates
 )
 
+add_executable(loradriver_test_lora_config_api
+  test_lora_config_api.cpp
+)
+
+target_link_libraries(loradriver_test_lora_config_api
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME lora_config_api
+  COMMAND loradriver_test_lora_config_api
+)
+
 add_subdirectory(non_regression)
 
 add_executable(loradriver_test_ota_gate

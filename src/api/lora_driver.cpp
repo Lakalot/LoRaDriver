@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "config_validation.hpp"
+
 namespace loradriver {
 
 namespace {
@@ -14,9 +16,9 @@ constexpr int kDiagConfigValidated = 1500;
 constexpr int kDiagChipDetected = 1600;
 constexpr int kDiagTransitionGuard = 1400;
 constexpr int kDiagInvalidSpiFrequency = 2001;
-constexpr int kDiagUnsupportedChip = 2101;
-constexpr int kDiagUnsupportedBand = 2102;
-constexpr int kDiagUnsupportedIrqRouting = 2103;
+constexpr int kDiagReasonUnsupportedChip = 21;
+constexpr int kDiagReasonUnsupportedBand = 22;
+constexpr int kDiagReasonUnsupportedIrqRouting = 23;
 constexpr int kDiagShutdownNotInitialized = 3001;
 
 constexpr int kDiagTxPreparing = 3100;
@@ -69,6 +71,14 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   last_diagnostic_context_.chip = config.chip;
   last_diagnostic_context_.band = config.band;
   last_diagnostic_context_.dio_routing = config.dio_routing;
+  last_diagnostic_context_.spi_frequency_hz = config.spi_frequency_hz;
+  last_diagnostic_context_.spreading_factor = config.spreading_factor;
+  last_diagnostic_context_.bandwidth_khz = config.bandwidth_khz;
+  last_diagnostic_context_.coding_rate_denominator = config.coding_rate_denominator;
+  last_diagnostic_context_.sync_word = config.sync_word;
+  last_diagnostic_context_.tx_power_dbm = config.tx_power_dbm;
+  last_diagnostic_context_.crc_enabled = config.crc_enabled;
+  last_diagnostic_context_.preamble_length = config.preamble_length;
 
   if (initialized_) {
     updateDiagnosticContext(LoRaError::kAlreadyInitialized, kDiagTransitionGuard);
@@ -93,7 +103,7 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   }
 
   if (!IsSupportedChip(config.chip)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagUnsupportedChip), config);
+    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedChip), config);
   }
 
   advanceSequence();
@@ -102,15 +112,20 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   }
 
   if (!IsSupportedBand(config.band)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagUnsupportedBand), config);
+    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedBand), config);
   }
 
   if (!IsSupportedDioRouting(config.dio_routing)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagUnsupportedIrqRouting), config);
+    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedIrqRouting), config);
   }
 
   if (!config.isSpiFrequencyInRange()) {
     return fail(LoRaError::kInvalidConfig, kDiagInvalidSpiFrequency, config);
+  }
+
+  const int lora_param_error = ValidateLoRaParams(config);
+  if (lora_param_error != 0) {
+    return fail(LoRaError::kInvalidConfig, lora_param_error, config);
   }
 
   advanceSequence();
@@ -452,6 +467,14 @@ LoRaError LoRaDriver::fail(LoRaError error, int detail_code, const RadioConfig& 
   last_diagnostic_context_.chip = context.chip;
   last_diagnostic_context_.band = context.band;
   last_diagnostic_context_.dio_routing = context.dio_routing;
+  last_diagnostic_context_.spi_frequency_hz = context.spi_frequency_hz;
+  last_diagnostic_context_.spreading_factor = context.spreading_factor;
+  last_diagnostic_context_.bandwidth_khz = context.bandwidth_khz;
+  last_diagnostic_context_.coding_rate_denominator = context.coding_rate_denominator;
+  last_diagnostic_context_.sync_word = context.sync_word;
+  last_diagnostic_context_.tx_power_dbm = context.tx_power_dbm;
+  last_diagnostic_context_.crc_enabled = context.crc_enabled;
+  last_diagnostic_context_.preamble_length = context.preamble_length;
 
   if (callback_) {
     try {
@@ -470,11 +493,19 @@ IncidentSnapshot LoRaDriver::captureIncidentSnapshot() const noexcept {
   snapshot.version_patch = LORADRIVER_VERSION_PATCH;
   snapshot.error = last_error_;
   snapshot.detail_code = last_diagnostic_code_;
-  snapshot.chip = config_.chip;
-  snapshot.band = config_.band;
-  snapshot.dio_routing = config_.dio_routing;
-  snapshot.sequence = sequence_;
+  snapshot.chip = last_diagnostic_context_.chip;
+  snapshot.band = last_diagnostic_context_.band;
+  snapshot.dio_routing = last_diagnostic_context_.dio_routing;
+  snapshot.sequence = last_diagnostic_context_.sequence;
   snapshot.timestamp_ms = currentTimestamp();
+  snapshot.spi_frequency_hz = last_diagnostic_context_.spi_frequency_hz;
+  snapshot.spreading_factor = last_diagnostic_context_.spreading_factor;
+  snapshot.bandwidth_khz = last_diagnostic_context_.bandwidth_khz;
+  snapshot.coding_rate_denominator = last_diagnostic_context_.coding_rate_denominator;
+  snapshot.sync_word = last_diagnostic_context_.sync_word;
+  snapshot.tx_power_dbm = last_diagnostic_context_.tx_power_dbm;
+  snapshot.crc_enabled = last_diagnostic_context_.crc_enabled;
+  snapshot.preamble_length = last_diagnostic_context_.preamble_length;
   return snapshot;
 }
 
@@ -510,6 +541,14 @@ void LoRaDriver::updateDiagnosticContext(LoRaError error, int detail_code) noexc
   last_diagnostic_context_.dio_routing = config_.dio_routing;
   last_diagnostic_context_.sequence = sequence_;
   last_diagnostic_context_.timestamp_ms = currentTimestamp();
+  last_diagnostic_context_.spi_frequency_hz = config_.spi_frequency_hz;
+  last_diagnostic_context_.spreading_factor = config_.spreading_factor;
+  last_diagnostic_context_.bandwidth_khz = config_.bandwidth_khz;
+  last_diagnostic_context_.coding_rate_denominator = config_.coding_rate_denominator;
+  last_diagnostic_context_.sync_word = config_.sync_word;
+  last_diagnostic_context_.tx_power_dbm = config_.tx_power_dbm;
+  last_diagnostic_context_.crc_enabled = config_.crc_enabled;
+  last_diagnostic_context_.preamble_length = config_.preamble_length;
 }
 
 }  // namespace loradriver

@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(loradriver STATIC
+  src/api/config_validation.cpp
   src/api/incident_classification.cpp
   src/api/incident_snapshot.cpp
   src/api/lora_driver.cpp

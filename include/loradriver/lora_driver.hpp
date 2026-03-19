@@ -33,6 +33,15 @@ class LoRaDriver {
     /// Timestamp in milliseconds. Populated from TimestampSource if set,
     /// otherwise 0. Host firmware should inject a platform-specific source.
     std::uint32_t timestamp_ms = 0;
+    std::uint32_t spi_frequency_hz = 8000000;
+    // Active LoRa modulation parameters
+    std::uint8_t spreading_factor = 9;
+    std::uint32_t bandwidth_khz = 125;
+    std::uint8_t coding_rate_denominator = 5;
+    std::uint8_t sync_word = 0x12;
+    std::int8_t tx_power_dbm = 14;
+    bool crc_enabled = true;
+    std::uint16_t preamble_length = 8;
   };
 
   [[nodiscard]] LoRaError begin(const RadioConfig& config) noexcept;

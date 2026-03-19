@@ -48,6 +48,7 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `chip`, `band`, `dio_routing`: profile configuration
   - `sequence`: operation sequence counter (increments on init phases, TX, RX, and recovery)
   - `timestamp_ms`: timestamp from injectable `TimestampSource` (0 if not configured)
+  - `spi_frequency_hz`: active SPI clock used by the latest operation context
 - `LoRaDriver::setTimestampSource(TimestampSource)` allows host firmware to inject a platform-specific millisecond clock (e.g., `millis()` on Arduino). If not set, all timestamp fields default to 0.
 
 ### Incident Snapshot (V1)
@@ -59,8 +60,10 @@ This document captures the baseline public contract for LoRaDriver V1.
   - `chip`, `band`, `dio_routing`: profile configuration
   - `sequence`: operation sequence counter
   - `timestamp_ms`: timestamp context (reserved for future use)
+  - `spi_frequency_hz`: active SPI clock used by the captured context
+  - `spreading_factor`, `bandwidth_khz`, `coding_rate_denominator`, `sync_word`, `tx_power_dbm`, `crc_enabled`, `preamble_length`: active LoRa parameter set
 - `IncidentSnapshot::formatTo(char* buffer, size_t buffer_size)` produces a stable, parseable output format:
-  - Format: `LORADRIVER_INCIDENT:v=X.Y.Z;e=E;c=C;b=B;d=D;dc=DC;seq=S;ts=T;`
+  - Format: `LORADRIVER_INCIDENT:v=X.Y.Z;e=E;c=C;b=B;d=D;dc=DC;seq=S;ts=T;spi=F;sf=SF;bw=BW;cr=CR;sw=SW;pwr=PWR;crc=CRC;pre=PRE;`
   - All fields are present in fixed order for reliable parsing
   - Minimum buffer size: `IncidentSnapshot::kFormatBufferSize` (256 bytes)
 
@@ -68,9 +71,10 @@ This document captures the baseline public contract for LoRaDriver V1.
 
 - Unsupported-profile `detail_code` uses a stable encoding: `(reason * 100) + (chip * 10) + (band * 3) + dio`.
 - `reason` values currently used by startup validation:
-  - `2101`: unsupported chip
-  - `2102`: unsupported band
-  - `2103`: unsupported IRQ routing
+  - `21`: unsupported chip
+  - `22`: unsupported band
+  - `23`: unsupported IRQ routing
+- Final encoded values therefore remain in the `2100+`, `2200+`, and `2300+` ranges with profile-context offsets.
 - Startup phase diagnostics:
   - `1100`: validate phase
   - `1200`: bind adapters phase
@@ -193,6 +197,56 @@ Supported baseline flow uses these stable calls: `begin`, `send`, `startReceive`
 - Successful timeout recovery returns `LoRaError::kTimeoutRecovered` with typed diagnostic context.
 - Illegal entry state returns `LoRaError::kTransitionGuardFailure` with detail code `6401`.
 - Transition or callback failures during recovery return `LoRaError::kTimeoutRecoveryFailure` with typed diagnostics.
+
+## LoRa Parameter Configuration Contract (V1)
+
+### RadioConfig LoRa Fields
+
+`RadioConfig` carries the full LoRa modulation parameter surface for V1. All fields have explicit V1-safe defaults:
+
+| Field | Type | Default | V1 Valid Range / Values |
+|---|---|---|---|
+| `spreading_factor` | `uint8_t` | `9` | 7 – 12 (SF7 to SF12) |
+| `bandwidth_khz` | `uint32_t` | `125` | 125, 250, or 500 kHz |
+| `coding_rate_denominator` | `uint8_t` | `5` | 5–8 (CR 4/5 to CR 4/8) |
+| `sync_word` | `uint8_t` | `0x12` | any (no range validation) |
+| `tx_power_dbm` | `int8_t` | `14` | any (no range validation in V1) |
+| `crc_enabled` | `bool` | `true` | any |
+| `preamble_length` | `uint16_t` | `8` | ≥ 6 |
+
+### Validation Rules
+
+LoRa parameter validation is performed inside `begin()` **after** hardware-profile checks (chip, band, DIO routing, SPI frequency) and **before** `kConfigValidated` is emitted.
+
+- Validation is **deterministic** and **allocation-free**.
+- Invalid parameters are rejected with `LoRaError::kInvalidConfig` and a field-identifying diagnostic detail code.
+- No partial state is applied: driver remains uninitialized on any validation failure.
+
+### LoRa Parameter Diagnostic Detail Codes
+
+| Code | Meaning |
+|---|---|
+| `2010` | `spreading_factor` out of range [7, 12] |
+| `2011` | `bandwidth_khz` not in {125, 250, 500} |
+| `2012` | `coding_rate_denominator` not in [5, 8] |
+| `2013` | `preamble_length` below minimum (< 6) |
+
+Each code uniquely identifies the offending field. On multiple invalid fields, the first detected violation is reported.
+
+### Incident Snapshot – LoRa Parameter Fields
+
+`IncidentSnapshot` includes the complete active radio parameter set for deterministic reproduction:
+- `spi_frequency_hz`
+- `spreading_factor`, `bandwidth_khz`, `coding_rate_denominator`, `sync_word`, `tx_power_dbm`, `crc_enabled`, `preamble_length`
+
+`IncidentSnapshot::formatTo()` output extended with LoRa fields (appended after `ts=`):
+```
+...;ts=T;spi=F;sf=SF;bw=BW;cr=CR;sw=SW;pwr=PWR;crc=CRC;pre=PRE;
+```
+
+A snapshot produced after a successful `begin()` contains all parameters required to reproduce the exact radio configuration deterministically.
+
+`DiagnosticContext` (accessible via `lastDiagnosticContext()`) also carries the same LoRa fields for last-operation diagnostic context.
 
 ## SX127x V1 Onboarding and Deviation Points
 
