@@ -340,3 +340,60 @@ All `LoRaError` codes are mapped deterministically. Unmapped or future error cod
 
 - `kSleep`: Emitted after successful transition to low-power Idle state
 - `kStandby`: Emitted after successful transition back to Ready state
+
+## Radio Event Counters Contract (V1)
+
+### Counter API
+
+- `RadioCounters getCounters() const noexcept` — returns a value snapshot of all cumulative counters.
+- `OtaTelemetryInput getOtaTelemetryInput(const char* firmware_version) const noexcept` — returns a fully populated OTA telemetry payload directly consumable by `OtaGateEngine::evaluate()`.
+- Read is **non-blocking** and **allocation-free**; safe to call from any context.
+- Counters start at zero for a new `LoRaDriver` instance and accumulate monotonically over the driver lifetime.
+- **Overflow behaviour**: `uint32_t` wrap-around is accepted for V1 and is documented behaviour, not an error condition.
+
+### `RadioCounters` Fields
+
+| Field | Incremented when |
+|---|---|
+| `init_attempts` | `begin()` is called (every call, including `kAlreadyInitialized` guard) |
+| `init_failures` | `begin()` returns any non-`kOk` error except `kAlreadyInitialized` |
+| `tx_success` | `send()` completes with `kOk` |
+| `tx_fail` | `send()` returns any non-`kOk` result |
+| `rx_success` | `startReceive()` completes with `kOk` (RX done path) |
+| `rx_fail` | `startReceive()` returns any non-`kOk` result |
+| `timeout_events` | `recoverFromTimeout()` enters the recovery path (after initial guards pass) |
+| `irq_overflow_events` | `handleIrqOverflow()` is called successfully (driver initialized) |
+
+### IRQ Overflow API
+
+- `[[nodiscard]] LoRaError handleIrqOverflow() noexcept` — records an IRQ overflow event.
+- Returns `kNotInitialized` if driver is not initialized (diagnostic detail `7101`), `kTransitionGuardFailure` if the event callback throws (diagnostic detail `7102`), and `kOk` on success.
+- On success: increments `irq_overflow_events` and emits `kIrqOverflow` event with detail code `7100`.
+- Works identically for both `kDio0Only` and `kDio0Dio1` profiles.
+- Intended to be called from platform IRQ adapter when an IRQ overflow condition is detected.
+
+### `RadioEvent::kIrqOverflow`
+
+- Added to `RadioEvent` enum (after `kError`, no renaming of existing values).
+- Emitted with `detail_code = 7100` (stable, deterministic).
+
+### OTA Telemetry Counter Mapping (NFR19 compliance)
+
+`getOtaTelemetryInput()` computes and supplies all required fields directly (no caller aggregation step):
+
+| `OtaTelemetryInput` field | Formula from `RadioCounters` |
+|---|---|
+| `init_failure_rate` | `init_failures * 100 / max(init_attempts, 1)` |
+| `tx_success_rate` | `tx_success * 100 / max(tx_success + tx_fail, 1)` |
+| `rx_success_rate` | `rx_success * 100 / max(rx_success + rx_fail, 1)` |
+| `timeout_events` | direct: `timeout_events` |
+| `irq_overflow_events` | direct: `irq_overflow_events` |
+
+No additional aggregation step is needed before passing telemetry to `OtaGateEngine::evaluate()`.
+
+Minimal usage:
+```cpp
+const auto telemetry = driver.getOtaTelemetryInput("1.2.3");
+OtaDecisionRationale rationale{};
+const auto decision = OtaGateEngine::evaluate(telemetry, rationale);
+```

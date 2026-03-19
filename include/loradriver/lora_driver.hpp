@@ -7,10 +7,13 @@
 #include "loradriver/incident_snapshot.hpp"
 #include "loradriver/lora_error.hpp"
 #include "loradriver/radio_config.hpp"
+#include "loradriver/radio_counters.hpp"
 #include "loradriver/radio_event.hpp"
 #include "loradriver/version.hpp"
 
 namespace loradriver {
+
+struct OtaTelemetryInput;
 
 class LoRaDriver {
  public:
@@ -62,6 +65,9 @@ class LoRaDriver {
   [[nodiscard]] DiagnosticContext lastDiagnosticContext() const noexcept;
   [[nodiscard]] IncidentSnapshot captureIncidentSnapshot() const noexcept;
   [[nodiscard]] std::uint32_t currentSequence() const noexcept;
+  [[nodiscard]] RadioCounters getCounters() const noexcept;
+  [[nodiscard]] OtaTelemetryInput getOtaTelemetryInput(const char* firmware_version) const noexcept;
+  [[nodiscard]] LoRaError handleIrqOverflow() noexcept;
 
  private:
   enum class DriverState {
@@ -84,6 +90,7 @@ class LoRaDriver {
   [[nodiscard]] bool isRxEntryState(DriverState state) const noexcept;
   [[nodiscard]] bool emitEvent(RadioEvent event, int detail_code) noexcept;
   [[nodiscard]] LoRaError fail(LoRaError error, int detail_code, const RadioConfig& context) noexcept;
+  [[nodiscard]] LoRaError initFail(LoRaError error, int detail_code, const RadioConfig& context) noexcept;
   void advanceSequence() noexcept;
   [[nodiscard]] std::uint32_t currentTimestamp() const noexcept;
   void updateDiagnosticContext(LoRaError error, int detail_code) noexcept;
@@ -97,6 +104,7 @@ class LoRaDriver {
   int last_diagnostic_code_ = 0;
   DiagnosticContext last_diagnostic_context_{};
   std::uint32_t sequence_ = 0;
+  RadioCounters counters_{};
 };
 
 }  // namespace loradriver

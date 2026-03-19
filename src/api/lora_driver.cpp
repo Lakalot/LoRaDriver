@@ -1,8 +1,10 @@
 #include "loradriver/lora_driver.hpp"
 
+#include <cstring>
 #include <utility>
 
 #include "config_validation.hpp"
+#include "loradriver/ota_gate.hpp"
 
 namespace loradriver {
 
@@ -43,7 +45,38 @@ constexpr int kDiagTimeoutNotInitialized = 6301;
 constexpr int kDiagTimeoutIllegalState = 6401;
 constexpr int kDiagTimeoutTransition = 6402;
 
+constexpr int kDiagIrqOverflow = 7100;
+
 constexpr std::size_t kMaxPayloadBytes = 255;
+
+float ComputePercentRate(std::uint32_t numerator, std::uint32_t denominator) noexcept {
+  const std::uint32_t safe_denominator = (denominator == 0U) ? 1U : denominator;
+  return (static_cast<float>(numerator) * 100.0f) / static_cast<float>(safe_denominator);
+}
+
+const char* ToRadioFamily(RadioConfig::Chip chip) noexcept {
+  switch (chip) {
+    case RadioConfig::Chip::kSx1276:
+      return "SX1276";
+    case RadioConfig::Chip::kSx1278:
+      return "SX1278";
+    case RadioConfig::Chip::kSx126xStub:
+      return "SX126X";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char* ToBandString(RadioConfig::Band band) noexcept {
+  switch (band) {
+    case RadioConfig::Band::k433:
+      return "433";
+    case RadioConfig::Band::k868:
+      return "868";
+    default:
+      return "UNK";
+  }
+}
 
 int EncodeProfileDiagnostic(const RadioConfig& config, int reason) noexcept {
   const int chip = static_cast<int>(config.chip);
@@ -67,6 +100,8 @@ bool IsSupportedDioRouting(RadioConfig::DioRouting routing) noexcept {
 }  // namespace
 
 LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
+  ++counters_.init_attempts;
+
   updateDiagnosticContext(LoRaError::kOk, 0);
   last_diagnostic_context_.chip = config.chip;
   last_diagnostic_context_.band = config.band;
@@ -92,69 +127,69 @@ LoRaError LoRaDriver::begin(const RadioConfig& config) noexcept {
   state_ = DriverState::kIdle;
   advanceSequence();
   if (!emitEvent(RadioEvent::kInitPhaseStart, kDiagPhaseStart)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 9, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 9, config);
   }
 
   if (!transitionTo(DriverState::kValidating)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 10, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 10, config);
   }
   if (!emitEvent(RadioEvent::kInitValidate, kDiagPhaseValidate)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 1, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 1, config);
   }
 
   if (!IsSupportedChip(config.chip)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedChip), config);
+    return initFail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedChip), config);
   }
 
   advanceSequence();
   if (!emitEvent(RadioEvent::kChipDetected, static_cast<int>(config.chip))) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 14, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 14, config);
   }
 
   if (!IsSupportedBand(config.band)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedBand), config);
+    return initFail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedBand), config);
   }
 
   if (!IsSupportedDioRouting(config.dio_routing)) {
-    return fail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedIrqRouting), config);
+    return initFail(LoRaError::kUnsupportedProfile, EncodeProfileDiagnostic(config, kDiagReasonUnsupportedIrqRouting), config);
   }
 
   if (!config.isSpiFrequencyInRange()) {
-    return fail(LoRaError::kInvalidConfig, kDiagInvalidSpiFrequency, config);
+    return initFail(LoRaError::kInvalidConfig, kDiagInvalidSpiFrequency, config);
   }
 
   const int lora_param_error = ValidateLoRaParams(config);
   if (lora_param_error != 0) {
-    return fail(LoRaError::kInvalidConfig, lora_param_error, config);
+    return initFail(LoRaError::kInvalidConfig, lora_param_error, config);
   }
 
   advanceSequence();
   if (!emitEvent(RadioEvent::kConfigValidated, kDiagConfigValidated)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 15, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 15, config);
   }
 
   if (!transitionTo(DriverState::kBindingAdapters)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 11, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 11, config);
   }
   if (!emitEvent(RadioEvent::kInitBindAdapters, kDiagPhaseBindAdapters)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 2, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 2, config);
   }
 
   if (!transitionTo(DriverState::kHardwareBringUp)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 12, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 12, config);
   }
   if (!emitEvent(RadioEvent::kInitHardwareBringUp, kDiagPhaseHardwareBringUp)) {
-    return fail(LoRaError::kHardwareInitFailure, kDiagPhaseHardwareBringUp + 1, config);
+    return initFail(LoRaError::kHardwareInitFailure, kDiagPhaseHardwareBringUp + 1, config);
   }
 
   config_ = config;
   initialized_ = true;
   if (!transitionTo(DriverState::kReady)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 13, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 13, config);
   }
 
   if (!emitEvent(RadioEvent::kInitialized, 0)) {
-    return fail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 4, config);
+    return initFail(LoRaError::kTransitionGuardFailure, kDiagTransitionGuard + 4, config);
   }
 
   updateDiagnosticContext(LoRaError::kOk, 0);
@@ -190,94 +225,117 @@ LoRaError LoRaDriver::shutdown() noexcept {
 
 LoRaError LoRaDriver::send(const std::uint8_t* payload, std::size_t size) noexcept {
   if (!initialized_) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kNotInitialized, kDiagTxNotInitialized, config_);
   }
 
   if (!isTxEntryState(state_)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState, config_);
   }
 
   advanceSequence();
 
   if (!transitionTo(DriverState::kTxPreparing)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 1, config_);
   }
   if (!emitEvent(RadioEvent::kTxPreparing, kDiagTxPreparing)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 2, config_);
   }
 
   if (payload == nullptr || size == 0 || size > kMaxPayloadBytes) {
     if (!transitionTo(DriverState::kTxFailed)) {
+      ++counters_.tx_fail;
       return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 3, config_);
     }
     if (!emitEvent(RadioEvent::kTxFailed, kDiagTxFailedInvalidPayload)) {
+      ++counters_.tx_fail;
       return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 4, config_);
     }
     if (!transitionTo(DriverState::kReady)) {
+      ++counters_.tx_fail;
       return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 5, config_);
     }
 
+    ++counters_.tx_fail;
     updateDiagnosticContext(LoRaError::kInvalidConfig, kDiagTxFailedInvalidPayload);
     return LoRaError::kInvalidConfig;
   }
 
   if (!transitionTo(DriverState::kTxInProgress)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 6, config_);
   }
   if (!emitEvent(RadioEvent::kTxInProgress, kDiagTxInProgress)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 7, config_);
   }
 
   if (!transitionTo(DriverState::kTxCompleted)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 8, config_);
   }
   const int tx_detail = (config_.dio_routing == RadioConfig::DioRouting::kDio0Only) ? 1 : 0;
   if (!emitEvent(RadioEvent::kTxCompleted, tx_detail)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 9, config_);
   }
 
   if (!transitionTo(DriverState::kReady)) {
+    ++counters_.tx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagTxIllegalState + 10, config_);
   }
 
+  ++counters_.tx_success;
   updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
 
 LoRaError LoRaDriver::startReceive() noexcept {
   if (!initialized_) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kNotInitialized, kDiagRxNotInitialized, config_);
   }
 
   if (!isRxEntryState(state_)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState, config_);
   }
 
   advanceSequence();
 
   if (!transitionTo(DriverState::kListening)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 1, config_);
   }
   if (!emitEvent(RadioEvent::kRxListening, kDiagRxListening)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 2, config_);
   }
 
   if (!transitionTo(DriverState::kRxInProgress)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 3, config_);
   }
   if (!emitEvent(RadioEvent::kRxInProgress, kDiagRxInProgress)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 4, config_);
   }
 
   const int rx_detail = (config_.dio_routing == RadioConfig::DioRouting::kDio0Only) ? 1 : 0;
   if (!emitEvent(RadioEvent::kRxDone, rx_detail)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 5, config_);
   }
 
   if (!transitionTo(DriverState::kListening)) {
+    ++counters_.rx_fail;
     return fail(LoRaError::kTransitionGuardFailure, kDiagRxIllegalState + 6, config_);
   }
 
+  ++counters_.rx_success;
   updateDiagnosticContext(LoRaError::kOk, 0);
   return LoRaError::kOk;
 }
@@ -334,6 +392,7 @@ LoRaError LoRaDriver::recoverFromTimeout() noexcept {
     return fail(LoRaError::kTransitionGuardFailure, kDiagTimeoutIllegalState, config_);
   }
 
+  ++counters_.timeout_events;
   advanceSequence();
 
   if (!transitionTo(DriverState::kTimeoutRecovering)) {
@@ -549,6 +608,57 @@ void LoRaDriver::updateDiagnosticContext(LoRaError error, int detail_code) noexc
   last_diagnostic_context_.tx_power_dbm = config_.tx_power_dbm;
   last_diagnostic_context_.crc_enabled = config_.crc_enabled;
   last_diagnostic_context_.preamble_length = config_.preamble_length;
+}
+
+RadioCounters LoRaDriver::getCounters() const noexcept {
+  return counters_;
+}
+
+OtaTelemetryInput LoRaDriver::getOtaTelemetryInput(const char* firmware_version) const noexcept {
+  OtaTelemetryInput telemetry{};
+
+  if (firmware_version != nullptr) {
+    std::strncpy(telemetry.firmware_version, firmware_version,
+                 OtaTelemetryInput::kMaxVersionLength - 1U);
+  }
+  std::strncpy(telemetry.radio_family, ToRadioFamily(config_.chip),
+               OtaTelemetryInput::kMaxFamilyLength - 1U);
+  std::strncpy(telemetry.active_band, ToBandString(config_.band),
+               OtaTelemetryInput::kMaxBandLength - 1U);
+
+  telemetry.init_failure_rate =
+      ComputePercentRate(counters_.init_failures, counters_.init_attempts);
+  telemetry.timeout_events = counters_.timeout_events;
+  telemetry.irq_overflow_events = counters_.irq_overflow_events;
+  telemetry.tx_success_rate =
+      ComputePercentRate(counters_.tx_success, counters_.tx_success + counters_.tx_fail);
+  telemetry.rx_success_rate =
+      ComputePercentRate(counters_.rx_success, counters_.rx_success + counters_.rx_fail);
+  telemetry.sample_timestamp_utc = currentTimestamp();
+  telemetry.baseline_tx_success_rate = 0.0f;
+  telemetry.baseline_rx_success_rate = 0.0f;
+  telemetry.baseline_init_failure_rate = 0.0f;
+
+  return telemetry;
+}
+
+LoRaError LoRaDriver::handleIrqOverflow() noexcept {
+  if (!initialized_) {
+    updateDiagnosticContext(LoRaError::kNotInitialized, kDiagIrqOverflow + 1);
+    return LoRaError::kNotInitialized;
+  }
+
+  ++counters_.irq_overflow_events;
+  if (!emitEvent(RadioEvent::kIrqOverflow, kDiagIrqOverflow)) {
+    updateDiagnosticContext(LoRaError::kTransitionGuardFailure, kDiagIrqOverflow + 2);
+    return LoRaError::kTransitionGuardFailure;
+  }
+  return LoRaError::kOk;
+}
+
+LoRaError LoRaDriver::initFail(LoRaError error, int detail_code, const RadioConfig& context) noexcept {
+  ++counters_.init_failures;
+  return fail(error, detail_code, context);
 }
 
 }  // namespace loradriver

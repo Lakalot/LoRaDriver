@@ -22,7 +22,8 @@ enum class RadioEvent {
   kStandby,
   kTimeout,
   kRecoveryCompleted,
-  kError
+  kError,
+  kIrqOverflow
 };
 
 }  // namespace loradriver

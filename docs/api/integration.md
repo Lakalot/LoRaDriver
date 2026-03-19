@@ -75,3 +75,8 @@ driver.setTimestampSource([]() -> std::uint32_t { return millis(); });
 ```
 
 Without a timestamp source, all `timestamp_ms` fields default to 0.
+
+## See Also
+
+- Full step-by-step integration guide (PlatformIO, CMake, profile examples): [`docs/api/integration-guide.md`](integration-guide.md)
+- V1 support scope and deferred items: [`docs/scope/v1-support-boundaries.md`](../scope/v1-support-boundaries.md)

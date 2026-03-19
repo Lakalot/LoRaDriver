@@ -158,3 +158,17 @@ add_test(
   NAME release_monitoring
   COMMAND loradriver_test_release_monitoring
 )
+
+add_executable(loradriver_test_radio_counters
+  test_radio_counters.cpp
+)
+
+target_link_libraries(loradriver_test_radio_counters
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME radio_counters
+  COMMAND loradriver_test_radio_counters
+)
