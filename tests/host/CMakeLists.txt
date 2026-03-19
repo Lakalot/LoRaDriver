@@ -172,3 +172,22 @@ add_test(
   NAME radio_counters
   COMMAND loradriver_test_radio_counters
 )
+
+add_executable(loradriver_test_sx127x_adapter_contract
+  test_sx127x_adapter_contract.cpp
+)
+
+target_include_directories(loradriver_test_sx127x_adapter_contract
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(loradriver_test_sx127x_adapter_contract
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME sx127x_adapter_contract
+  COMMAND loradriver_test_sx127x_adapter_contract
+)
