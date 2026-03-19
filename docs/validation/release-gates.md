@@ -577,6 +577,178 @@ ctest --preset default --tests-regex "^rollback_governance$" --output-on-failure
 
 ---
 
+## Post-Release Monitoring and Progressive Rollout Blocking (Story 4.3)
+
+After a release is deployed to early waves, a monitoring window tracks critical incidents
+and gates further rollout expansion. The `ReleaseMonitoringEngine` provides bounded,
+allocation-free monitoring with deterministic blocking decisions.
+
+### Monitoring Window Lifecycle
+
+```
+openWindow() → recordIncident()* → evaluateBlockPolicy()* → closeWindow()
+                                                                ↓
+                                               WindowReviewOutput + kValidationReport artifact
+```
+
+1. **Open**: Register a monitoring context for a specific release/profile. Generates a
+   `kIncidentEvidence` artifact (180-day retention). The returned window ID is the artifact ID.
+
+2. **Record**: Each field incident is appended to the trend ledger (bounded: up to 64 per window).
+   `TraceabilityEngine::linkIncidentToArtifact` is called for each incident.
+
+3. **Evaluate**: Progressive rollout block policy checked at any point during the window.
+   Returns `kContinue`, `kHold`, or `kBlock` with full `BlockDecisionRationale`.
+
+4. **Close**: Generates `WindowReviewOutput` with objective comparisons, calibration notes,
+   and a `kValidationReport` artifact (90-day retention).
+
+### Block Decision Precedence
+
+Evaluated in strict order — first matching condition wins:
+
+| Priority | Condition | Outcome | Rule |
+|----------|-----------|---------|------|
+| 1 | Window missing or closed (stale context) | `kHold` | stale_context flag |
+| 2 | Any critical incident recorded | `kBlock` | RM-TREND-001 |
+| 3 | OTA telemetry gate violation | `kBlock` | OTA gate IDs (e.g. TXRX-001) |
+| 4 | No blocking condition | `kContinue` | — |
+
+### Incident Severity and Rollout Impact
+
+| Severity | Blocks Rollout | Rule Fired |
+|----------|----------------|-----------|
+| `kCritical` | **YES** — immediately | RM-TREND-001 |
+| `kHigh` | No — monitored only | — |
+| `kMedium` | No — monitored only | — |
+| `kLow` | No — monitored only | — |
+
+### Monitoring Window API
+
+```cpp
+#include <loradriver/release_monitoring.hpp>
+
+// 1. Open a monitoring window
+loradriver::MonitoringWindow ctx{};
+std::strncpy(ctx.release_version, "1.2.3",   sizeof(ctx.release_version) - 1);
+std::strncpy(ctx.radio_family,    "SX1276",  sizeof(ctx.radio_family) - 1);
+std::strncpy(ctx.active_band,     "868",     sizeof(ctx.active_band) - 1);
+ctx.window_start_utc = getCurrentTimestampUtc();
+
+char window_id[32] = {};
+loradriver::LoRaError err =
+    loradriver::ReleaseMonitoringEngine::openWindow(ctx, window_id, sizeof(window_id));
+// window_id is the kIncidentEvidence artifact ID
+
+// 2. Record an incident
+loradriver::IncidentRecord inc{};
+std::strncpy(inc.incident_id, "INC-001", sizeof(inc.incident_id) - 1);
+inc.category       = loradriver::IncidentCategory::kTxFailure;
+inc.severity       = loradriver::IncidentSeverity::kCritical;
+inc.first_seen_utc = getCurrentTimestampUtc();
+inc.count          = 1;
+
+loradriver::ReleaseMonitoringEngine::recordIncident(window_id, inc);
+
+// 3. Evaluate block policy (optional: pass OTA telemetry for KPI gate reuse)
+loradriver::BlockDecisionRationale rationale{};
+loradriver::RolloutBlockOutcome outcome =
+    loradriver::ReleaseMonitoringEngine::evaluateBlockPolicy(
+        window_id, nullptr,
+        loradriver::BlockDecisionSource::kAutoPolicy,
+        rationale);
+
+switch (outcome) {
+  case loradriver::RolloutBlockOutcome::kBlock:
+    // rationale.failed_rule_ids[0] == "RM-TREND-001"
+    // rationale.artifact_id links to kGateReport evidence
+    break;
+  case loradriver::RolloutBlockOutcome::kHold:
+    // rationale.stale_context == true — window closed or missing
+    break;
+  case loradriver::RolloutBlockOutcome::kContinue:
+    // No blocking condition detected
+    break;
+}
+
+// 4. Close window and review objectives
+loradriver::WindowReviewOutput review{};
+loradriver::ReleaseMonitoringEngine::closeWindow(window_id, getCurrentTimestampUtc(), review);
+// review.objectives_met == true iff critical + high + total all == 0
+// review.window_artifact_id — kValidationReport artifact
+// review.calibration_notes[] — "no adjustment needed" or count details
+```
+
+### Window Context Constraints (V1 Scope)
+
+| Field | Required Values | Validation |
+|-------|-----------------|-----------|
+| `radio_family` | `SX1276`, `SX1278` | Validated on `openWindow` |
+| `active_band` | `433`, `868` | Validated on `openWindow` |
+| `profile_id` | Non-empty profile identifier | Validated on `openWindow` |
+| `window_start_utc` | Non-zero | Validated on `openWindow` |
+| `window_end_utc` | > `window_start_utc` if non-zero | Validated on `openWindow` |
+
+### Evidence Requirements for Post-Incident Review
+
+- **Window open**: `kIncidentEvidence` artifact (180-day retention); ID returned as `window_id`
+- **Per incident**: Linked via `TraceabilityEngine::linkIncidentToArtifact(incident_id, window_id)`
+- **Block decision**: `kGateReport` artifact registered; ID in `rationale.artifact_id`
+- **Window close**: `kValidationReport` artifact (90-day retention); linked to `window_id`
+  - `review.window_artifact_id` — the `kValidationReport` artifact ID
+  - `review.linked_artifact_ids[0]` — the original `kIncidentEvidence` (window_id) artifact ID
+
+### Window Review Objectives
+
+All three objectives must be zero for `objectives_met == true`:
+
+| Objective | Target | Field |
+|-----------|--------|-------|
+| Critical incidents | 0 | `MonitoringTrendLedger::critical_count` |
+| High incidents | 0 | `MonitoringTrendLedger::high_count` |
+| Total incidents | 0 | `MonitoringTrendLedger::total_incident_count` |
+
+### Trend Ledger Snapshot
+
+```cpp
+loradriver::MonitoringTrendLedger trend{};
+bool ok = loradriver::ReleaseMonitoringEngine::getTrendSnapshot(window_id, trend);
+
+// trend.critical_count, high_count, medium_count, low_count, total_incident_count
+// trend.getCountBySeverity(IncidentSeverity::kCritical) == trend.critical_count
+```
+
+### Closed Window Guards
+
+- `recordIncident` to a closed window returns `kInvalidConfig`
+- `closeWindow` on an already-closed window returns `kInvalidConfig`
+- `evaluateBlockPolicy` on a closed/missing window returns `kHold` with `stale_context == true`
+
+### Escalation Decision Schema
+
+`BlockDecisionRationale` uses an identical evidence schema regardless of `BlockDecisionSource`
+(auto-policy vs. operator-policy). This ensures uniform evidence for audit and RCA:
+
+| Field | Content on kBlock |
+|-------|------------------|
+| `failed_rule_ids[]` | `"RM-TREND-001"` (trend) or OTA gate IDs |
+| `metric_values[]` | Actual measured metric values |
+| `thresholds[]` | Applicable thresholds (0.0 for RM-TREND-001) |
+| `artifact_id` | `kGateReport` artifact ID |
+| `reason` | Human-readable explanation |
+| `trend_breach` | `true` when RM-TREND-001 fires |
+| `kpi_breach` | `true` when OTA gate fails |
+| `stale_context` | `true` when window missing/closed |
+
+### CI Host-Lane Test Pattern
+
+```bash
+# Run release monitoring tests
+ctest --preset default --tests-regex "^release_monitoring$" --output-on-failure
+```
+
+---
+
 ## References
 
 - Profile Test Matrix: [test-matrix.md](./test-matrix.md)
@@ -592,4 +764,5 @@ ctest --preset default --tests-regex "^rollback_governance$" --output-on-failure
 - API: `include/loradriver/rollback_governance.hpp`
 - API: `include/loradriver/artifact_governance.hpp`
 - API: `include/loradriver/versioning.hpp`
+- API: `include/loradriver/release_monitoring.hpp`
 - Configuration: `tools/ci/gate_rules.yaml`

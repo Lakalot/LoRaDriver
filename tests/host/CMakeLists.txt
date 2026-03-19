@@ -130,3 +130,17 @@ add_test(
   NAME changelog_manager
   COMMAND loradriver_test_changelog_manager
 )
+
+add_executable(loradriver_test_release_monitoring
+  test_release_monitoring.cpp
+)
+
+target_link_libraries(loradriver_test_release_monitoring
+  PRIVATE
+    loradriver
+)
+
+add_test(
+  NAME release_monitoring
+  COMMAND loradriver_test_release_monitoring
+)

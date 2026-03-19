@@ -53,7 +53,7 @@ static_assert(std::is_trivially_copyable<RollbackRequest>::value,
 // ─────────────────────────────────────────────────────────────────────────────
 struct RollbackResult {
   static constexpr size_t kMaxArtifactIdLength = 32;
-  static constexpr size_t kMaxStepIdLength     = 16;
+  static constexpr size_t kMaxStepIdLength     = 32;
   static constexpr size_t kMaxReasonLength     = 128;
 
   RollbackState final_state;                         ///< kComplete or kFailed
