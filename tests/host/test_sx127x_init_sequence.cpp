@@ -396,6 +396,54 @@ bool TestBeginEndBeginAppliesNewConfig() {
     return true;
 }
 
+bool TestErrata23TableFor7800Hz() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.bandwidth_hz = 7'800u;
+    c.spreading_factor = 12; // 7.8 kHz BW requires SF≥11
+    c.symbol_timeout = 100;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq1), std::uint8_t{0x48});
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq2), std::uint8_t{0x00});
+    return true;
+}
+
+bool TestErrata23TableFor62500Hz() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.bandwidth_hz = 62'500u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq1), std::uint8_t{0x40});
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq2), std::uint8_t{0x00});
+    return true;
+}
+
+bool TestErrata23TableFor41700Hz() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.bandwidth_hz = 41'700u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq1), std::uint8_t{0x44});
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq2), std::uint8_t{0x00});
+    return true;
+}
+
+bool TestErrata23TableFor500000HzHighBand() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.bandwidth_hz = 500'000u;
+    c.frequency_hz = 868'000'000u; // high-band so BW500 is legal
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq1), std::uint8_t{0x00});
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq2), std::uint8_t{0x00});
+    LD_EXPECT(static_cast<std::uint8_t>(spi.reg(reg::kDetectionOptimize) & 0x80u) != 0u);
+    return true;
+}
+
 int main() {
     LD_RUN(TestBeginRejectsInvalidConfig);
     LD_RUN(TestBeginRejectsMissingChip);
@@ -427,5 +475,9 @@ int main() {
     LD_RUN(TestErrata23WritesIfFreqRegisters);
     LD_RUN(TestBeginEndBeginCycleSucceeds);
     LD_RUN(TestBeginEndBeginAppliesNewConfig);
+    LD_RUN(TestErrata23TableFor7800Hz);
+    LD_RUN(TestErrata23TableFor62500Hz);
+    LD_RUN(TestErrata23TableFor41700Hz);
+    LD_RUN(TestErrata23TableFor500000HzHighBand);
     return loradriver::test::report();
 }

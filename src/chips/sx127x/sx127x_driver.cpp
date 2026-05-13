@@ -245,7 +245,15 @@ LoRaError SX127xDriver::apply_errata(std::uint32_t bw_hz, std::uint32_t freq_hz)
         det &= ~0x80u;
         if ((e = spi_.write_register(reg::kDetectionOptimize, det)) != LoRaError::OK)
             return e;
-        if ((e = spi_.write_register(reg::kIfFreq1, 0x40)) != LoRaError::OK)
+        // Per-BW IfFreq1 from errata 2.3 table (SX1276 errata note v1.1 §2.3).
+        std::uint8_t if_freq1 = 0x40; // default for 62.5 / 125 / 250 kHz
+        if (bw_hz == 7'800u) {
+            if_freq1 = 0x48;
+        } else if (bw_hz <= 41'700u) {
+            // 10.4, 15.6, 20.8, 31.25, 41.7 kHz
+            if_freq1 = 0x44;
+        }
+        if ((e = spi_.write_register(reg::kIfFreq1, if_freq1)) != LoRaError::OK)
             return e;
         if ((e = spi_.write_register(reg::kIfFreq2, 0x00)) != LoRaError::OK)
             return e;
