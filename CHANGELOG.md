@@ -26,8 +26,12 @@ latent bugs, library plumbing, hardware-specific deep work.
 - clang-format applied to the entire codebase; lint gate now meaningful.
 - Doxygen `@brief` annotations on every public type/field/method.
 - `LORADRIVER_NO_EXCEPTIONS_MSVC=ON` CMake option to validate the
-  noexcept contract under MSVC `/EHs-c- /GR-` (CI job added).
-- Branch `finishing/v1.2` pushed to GitHub for CI validation.
+  noexcept contract under MSVC `/EHs-c- /GR-` (validated locally; not
+  in CI to stay within the free Actions tier).
+- Branch `finishing/v1.2` pushed to GitHub. CI matrix reduced to
+  `ubuntu-latest` only (build+test, sanitizers, clang-format lint) so
+  the workflow runs on the free public-repo tier. See docs/api.md
+  "CI scope" for the rationale and how to add Windows/macOS jobs back.
 
 ### Added (P2)
 

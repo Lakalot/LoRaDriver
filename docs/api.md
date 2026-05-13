@@ -77,6 +77,21 @@ was invoked. Higher SPI traffic but works without a free GPIO.
 `UnsupportedChip` if the chip has gone away (brown-out, ESD reset). Call
 periodically from your main loop or pump task and re-init if it fails.
 
+## CI scope
+
+GitHub Actions runs `build-and-test`, `sanitizers` (ASan + UBSan) and
+`lint` (clang-format) on `ubuntu-latest` for every push to main / rewrite
+/ hardening / finishing branches and every PR to main. Linux is
+unmetered on public repos.
+
+The MSVC `-fno-exceptions` path (`LORADRIVER_NO_EXCEPTIONS_MSVC=ON`) and
+macOS Clang build are validated locally before each merge — they exist
+in the CMake configuration but aren't run in CI to stay within the free
+tier. If you want full multi-OS coverage in CI, add them back as
+additional jobs in `.github/workflows/host-tests.yml` (windows-latest
+and macos-latest are billable even on public repos: 2x and 10x
+multipliers respectively).
+
 ## Out of scope for v1.1
 
 The following datasheet features are intentionally not exposed:

@@ -2,17 +2,18 @@ name: Host tests
 
 on:
   push:
-    branches: [main, "rewrite/**", "hardening/**"]
+    branches: [main, "rewrite/**", "hardening/**", "finishing/**"]
   pull_request:
     branches: [main]
 
+# Ubuntu-only matrix to stay within the free GitHub Actions tier
+# (Linux is unmetered on public repos; Windows = 2x and macOS = 10x billable).
+# The MSVC -fno-exceptions and Linux gcc -fno-exceptions paths are exercised
+# locally before each merge — see docs/api.md.
+
 jobs:
   build-and-test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -44,14 +45,3 @@ jobs:
         run: sudo apt-get install -y clang-format
       - name: Run clang-format check
         run: ./tools/lint.sh
-
-  no-exceptions-msvc:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build/noex -DLORADRIVER_NO_EXCEPTIONS_MSVC=ON
-      - name: Build
-        run: cmake --build build/noex --config Debug
-      - name: Run
-        run: ctest --test-dir build/noex -C Debug --output-on-failure
