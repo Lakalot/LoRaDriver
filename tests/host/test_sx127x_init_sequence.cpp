@@ -341,6 +341,17 @@ bool TestBeginSkipsResetWhenAutoResetFalse() {
     return true;
 }
 
+bool TestErrata23WritesIfFreqRegisters() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.bandwidth_hz = 125'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq1), std::uint8_t{0x40});
+    LD_EXPECT_EQ(spi.reg(reg::kIfFreq2), std::uint8_t{0x00});
+    return true;
+}
+
 bool TestBeginEndBeginCycleSucceeds() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -397,6 +408,7 @@ int main() {
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
     LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
+    LD_RUN(TestErrata23WritesIfFreqRegisters);
     LD_RUN(TestBeginEndBeginCycleSucceeds);
     LD_RUN(TestBeginEndBeginAppliesNewConfig);
     return loradriver::test::report();

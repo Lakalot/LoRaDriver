@@ -188,16 +188,38 @@ LoRaError SX127xDriver::apply_ocp(std::uint8_t ma) noexcept {
 }
 
 LoRaError SX127xDriver::apply_errata(std::uint32_t bw_hz, std::uint32_t freq_hz) noexcept {
+    LoRaError e;
+
     // Errata 2.1: High BW optimisation when BW = 500 kHz and high-band
     if (bw_hz == 500'000u && freq_hz >= 525'000'000u) {
-        LoRaError e;
         if ((e = spi_.write_register(reg::kHighBwOptimize1, 0x02)) != LoRaError::OK) return e;
         if ((e = spi_.write_register(reg::kHighBwOptimize2, 0x64)) != LoRaError::OK) return e;
     } else {
-        LoRaError e;
         if ((e = spi_.write_register(reg::kHighBwOptimize1, 0x03)) != LoRaError::OK) return e;
-        (void)e;
     }
+
+    // Errata 2.3: receiver spurious reception of a LoRa signal. The chip
+    // generates a spurious IF artifact; the datasheet errata note gives a
+    // per-BW table for RegIfFreq1/2 + a NOP on RegDetectOptimize bit 7.
+    // For BW = 500 kHz the workaround is bit 7 set on DetectOptimize and
+    // IfFreq1/2 = 0x00. Below 500 kHz, bit 7 cleared and BW-specific IfFreq
+    // (P2.1 expands the full table; here we land the 125 kHz default).
+    if (bw_hz < 500'000u) {
+        std::uint8_t det = 0;
+        if ((e = spi_.read_register(reg::kDetectionOptimize, det)) != LoRaError::OK) return e;
+        det &= ~0x80u;
+        if ((e = spi_.write_register(reg::kDetectionOptimize, det)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kIfFreq1, 0x40)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kIfFreq2, 0x00)) != LoRaError::OK) return e;
+    } else {
+        std::uint8_t det = 0;
+        if ((e = spi_.read_register(reg::kDetectionOptimize, det)) != LoRaError::OK) return e;
+        det |= 0x80u;
+        if ((e = spi_.write_register(reg::kDetectionOptimize, det)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kIfFreq1, 0x00)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kIfFreq2, 0x00)) != LoRaError::OK) return e;
+    }
+
     return LoRaError::OK;
 }
 
