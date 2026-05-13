@@ -16,8 +16,9 @@ target_include_directories(loradriver
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# Placeholder source so the static lib has at least one TU until Phase 1 lands
-target_sources(loradriver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/_placeholder.cpp)
+target_sources(loradriver PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_error.cpp
+)
 
 enable_testing()
 add_subdirectory(tests/host)
