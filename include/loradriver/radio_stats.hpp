@@ -5,6 +5,9 @@
 
 namespace loradriver {
 
+/// @brief Cumulative driver counters and last-packet metrics.
+///
+/// Snapshot-by-value via LoRaTransceiver::stats(). Trivially copyable.
 struct RadioStats {
     std::uint32_t tx_done = 0;
     std::uint32_t tx_timeout = 0;

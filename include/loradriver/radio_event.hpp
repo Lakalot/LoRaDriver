@@ -4,6 +4,7 @@
 
 namespace loradriver {
 
+/// @brief Low-level radio events emitted from process_events().
 enum class RadioEvent : std::uint8_t {
     None = 0,
     TxDone,

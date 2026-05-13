@@ -11,8 +11,15 @@
 
 namespace loradriver {
 
+/// @brief Chip-agnostic radio driver interface.
+///
+/// Implemented by SX127xDriver (and future SX126xDriver). All fallible
+/// methods return LoRaError. Callbacks must be noexcept. Most users
+/// should interact via LoRaTransceiver instead of this interface
+/// directly — see lora_transceiver.hpp for the high-level API.
 class IRadioDriver {
 public:
+    /// @brief Event callback signature (signature-compatible across drivers).
     using EventCallback = std::function<void(RadioEvent, int)>;
 
     virtual ~IRadioDriver() = default;

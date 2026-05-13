@@ -6,9 +6,16 @@
 
 namespace loradriver {
 
+/// @brief Chip family variant. Affects frequency validation and (for SX1277) SF cap.
 enum class ChipModel : std::uint8_t { SX1276, SX1277, SX1278, SX1279 };
+
+/// @brief PA output pin selection.
 enum class PaOutput : std::uint8_t { PaBoost, Rfo };
 
+/// @brief Complete radio configuration passed to LoRaTransceiver::begin().
+///
+/// All defaults are sane for SX1276 868 MHz LoRa P2P. Override per
+/// member as needed. Call validate() before passing to begin().
 struct LoRaConfig {
     // RF
     std::uint32_t frequency_hz = 868'000'000u;
@@ -57,7 +64,12 @@ struct LoRaConfig {
     std::int8_t pin_dio0 = -1;
     std::int8_t pin_dio1 = -1;
 
+    /// @brief Reject configurations that the chip cannot honour.
+    /// @return OK if every field is in range and mutually consistent.
     [[nodiscard]] LoRaError validate() const noexcept;
+
+    /// @brief Whether Low Data Rate Optimise must be enabled for this SF/BW.
+    /// @return true if symbol duration > 16 ms (Semtech AN1200.24).
     [[nodiscard]] bool ldro_required() const noexcept;
 };
 
