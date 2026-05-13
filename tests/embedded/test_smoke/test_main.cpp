@@ -18,8 +18,8 @@ constexpr std::int8_t kPinSck   = 18;
 constexpr std::int8_t kPinMiso  = 19;
 constexpr std::int8_t kPinMosi  = 22;  // non-default — MOSI on GPIO22, not 23
 constexpr std::int8_t kPinSS    = 5;
-constexpr std::int8_t kPinReset = 4;
-constexpr std::int8_t kPinDio0  = 17;
+constexpr std::int8_t kPinReset = 17;  // swapped with DIO0: hardware wired backwards
+constexpr std::int8_t kPinDio0  = 4;
 
 hal::Esp32SpiDevice g_spi(SPI, kPinSS);
 chips::SX127xDriver g_drv(g_spi);

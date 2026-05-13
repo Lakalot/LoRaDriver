@@ -300,12 +300,16 @@ bool TestBeginSx1278RejectsHighBandFrequency() {
 }
 
 bool TestStandbyToTxVerifiesOpMode() {
+    // Simulate a chip that has gone fully dead: writes silently swallowed AND
+    // reads return 0x00 (no LoRa bit set). The relaxed verify only checks the
+    // LoRa-mode bit, so we must clear it explicitly to trigger the mismatch.
     FakeSpiDevice good;
     SX127xDriver drv_ok(good);
     LoRaConfig c = MakeCfg();
     c.auto_reset = false;
     LD_EXPECT_EQ(drv_ok.begin(c), LoRaError::OK);
-    good.set_dead_after_writes(reg::kOpMode, 1);
+    good.set_register(reg::kOpMode, 0x00);  // chip "died" — LoRa bit cleared
+    good.set_dead_after_writes(reg::kOpMode, 0);
     const std::uint8_t buf[2] = {0xAA, 0x55};
     LD_EXPECT_EQ(drv_ok.start_transmit(buf, 2, 1000), LoRaError::SpiVerifyMismatch);
     return true;

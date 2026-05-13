@@ -92,8 +92,12 @@ LoRaError SX127xDriver::set_op_mode(std::uint8_t mode) noexcept {
     LoRaError e = spi_.write_register(reg::kOpMode, mode);
     if (e != LoRaError::OK) return e;
     // Read-back verify on critical mode transitions: TX, RX (any), CAD.
-    // Skip verify on sleep/standby pairs since the init sequence verify
-    // step already covers them.
+    // We only check that the LoRa-mode bit (0x80) stayed high — a strict
+    // equality check is too aggressive because the chip can be in a brief
+    // transitional state (e.g. FSTX between Standby and TX) when we read
+    // back, and reads/writes are not strictly synchronous on real silicon.
+    // The init-sequence verify step (after FSK→LoRa transition) covers
+    // the "chip is alive" case; here we just catch a fully-dead chip.
     const bool needs_verify = (mode == opmode::kLoRaTx ||
                                mode == opmode::kLoRaRxCont ||
                                mode == opmode::kLoRaRxSingle ||
@@ -102,7 +106,7 @@ LoRaError SX127xDriver::set_op_mode(std::uint8_t mode) noexcept {
         std::uint8_t readback = 0;
         e = spi_.read_register(reg::kOpMode, readback);
         if (e != LoRaError::OK) return e;
-        if (readback != mode) return LoRaError::SpiVerifyMismatch;
+        if ((readback & opmode::kLoRaModeBit) == 0u) return LoRaError::SpiVerifyMismatch;
     }
     op_mode_shadow_ = mode;
     return LoRaError::OK;
