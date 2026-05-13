@@ -302,7 +302,17 @@ LoRaError SX127xDriver::begin(const LoRaConfig& cfg) noexcept {
 void SX127xDriver::end() noexcept {
     if (!initialized_) return;
     (void)set_op_mode(opmode::kLoRaSleep);
+    // Reset all runtime state so a subsequent begin() restarts from a clean slate.
     initialized_ = false;
+    tx_in_progress_ = false;
+    tx_deadline_ms_ = 0;
+    rx_silence_deadline_ms_ = 0;
+    op_mode_shadow_ = 0;
+    cad_auto_rx_ = false;
+    irq_head_ = 0;
+    irq_tail_ = 0;
+    event_cb_ = nullptr;
+    cfg_ = LoRaConfig{};
 }
 
 LoRaError SX127xDriver::set_sleep() noexcept {

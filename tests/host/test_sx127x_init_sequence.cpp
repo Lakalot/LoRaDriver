@@ -341,6 +341,35 @@ bool TestBeginSkipsResetWhenAutoResetFalse() {
     return true;
 }
 
+bool TestBeginEndBeginCycleSucceeds() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    drv.end();
+    // Second begin must re-run the full init sequence, not return AlreadyInitialized.
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    return true;
+}
+
+bool TestBeginEndBeginAppliesNewConfig() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c1 = MakeCfg();
+    c1.auto_reset = false;
+    c1.sync_word = 0x12;
+    LD_EXPECT_EQ(drv.begin(c1), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kSyncWord), std::uint8_t{0x12});
+    drv.end();
+
+    LoRaConfig c2 = c1;
+    c2.sync_word = 0x34;
+    LD_EXPECT_EQ(drv.begin(c2), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kSyncWord), std::uint8_t{0x34});
+    return true;
+}
+
 int main() {
     LD_RUN(TestBeginRejectsInvalidConfig);
     LD_RUN(TestBeginRejectsMissingChip);
@@ -368,5 +397,7 @@ int main() {
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
     LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
+    LD_RUN(TestBeginEndBeginCycleSucceeds);
+    LD_RUN(TestBeginEndBeginAppliesNewConfig);
     return loradriver::test::report();
 }
