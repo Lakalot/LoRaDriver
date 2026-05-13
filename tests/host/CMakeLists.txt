@@ -1,2 +1,8 @@
-# Tests are added per-file in later phases.
-# This file exists so the parent CMakeLists.txt add_subdirectory() succeeds.
+function(loradriver_add_host_test name)
+  add_executable(${name} ${name}.cpp)
+  target_link_libraries(${name} PRIVATE loradriver)
+  target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+loradriver_add_host_test(test_lora_config_validate)
