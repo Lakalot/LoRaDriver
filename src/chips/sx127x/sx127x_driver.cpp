@@ -472,7 +472,23 @@ LoRaError SX127xDriver::set_tx_power(std::int8_t dbm, PaOutput out) noexcept {
         return LoRaError::NotInitialized;
     cfg_.tx_power_dbm = dbm;
     cfg_.pa_output = out;
-    return apply_tx_power(dbm, out);
+    LoRaError e = apply_tx_power(dbm, out);
+    if (e != LoRaError::OK)
+        return e;
+
+    // High-power PA_BOOST (>17 dBm with PaDac=0x87) needs OCP ≥ 130 mA per
+    // datasheet §3.4.1. Below 17 dBm, restore the user's configured OCP.
+    if (out == PaOutput::PaBoost && dbm > 17) {
+        constexpr std::uint8_t kHighPowerOcpMa = 130;
+        if (cfg_.ocp_ma < kHighPowerOcpMa) {
+            return apply_ocp(kHighPowerOcpMa);
+        }
+    } else {
+        // Restore user-configured OCP (covers the case where we previously
+        // bumped it up for high-power).
+        return apply_ocp(cfg_.ocp_ma);
+    }
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::set_spreading_factor(std::uint8_t sf) noexcept {

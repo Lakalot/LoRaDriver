@@ -162,6 +162,37 @@ bool TestSetOcpEnabledPreservesTrim() {
     return true;
 }
 
+bool TestSetTxPowerHighPowerRaisesOcpTrim() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.ocp_ma = 100; // trim 0x0B
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    LD_EXPECT_EQ(drv.set_tx_power(14, PaOutput::PaBoost), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x1Fu), std::uint8_t{0x0B});
+
+    // Step into high-power: OCP must rise to at least 130 mA.
+    LD_EXPECT_EQ(drv.set_tx_power(20, PaOutput::PaBoost), LoRaError::OK);
+    LD_EXPECT(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x1Fu) >= 0x10);
+    return true;
+}
+
+bool TestSetTxPowerLowPowerRestoresUserOcp() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.ocp_ma = 100;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    LD_EXPECT_EQ(drv.set_tx_power(20, PaOutput::PaBoost), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_tx_power(14, PaOutput::PaBoost), LoRaError::OK);
+
+    // After returning to low-power, user's original OCP trim is restored.
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x1Fu), std::uint8_t{0x0B});
+    return true;
+}
+
 bool TestSetFrequencyLargeJumpTriggersRecalibration() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -213,6 +244,8 @@ int main() {
     LD_RUN(TestSetLnaGainSpecificValueDisablesAgc);
     LD_RUN(TestSetOcpEnabledTogglesBit5);
     LD_RUN(TestSetOcpEnabledPreservesTrim);
+    LD_RUN(TestSetTxPowerHighPowerRaisesOcpTrim);
+    LD_RUN(TestSetTxPowerLowPowerRestoresUserOcp);
     LD_RUN(TestSetFrequencyLargeJumpTriggersRecalibration);
     LD_RUN(TestSetFrequencySmallJumpSkipsRecalibration);
     return loradriver::test::report();
