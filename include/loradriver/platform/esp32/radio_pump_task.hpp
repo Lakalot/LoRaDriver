@@ -58,9 +58,22 @@ public:
     void stop() {
         const TaskHandle_t t = task_;
         if (t == nullptr) return;
-        task_ = nullptr;
+        // Signal the task to exit; it will vTaskDelete(nullptr) itself.
+        stop_requested_ = true;
+        // Nudge in case task is blocked in ulTaskNotifyTake.
+        BaseType_t woken = pdFALSE;
+        vTaskNotifyGiveFromISR(t, &woken);
+        // Wait up to ~600 ms (500 ms send timeout + 100 ms slack).
+        for (int i = 0; i < 60 && task_ != nullptr; ++i) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (task_ != nullptr) {
+            // Last-resort kill if the task didn't honour the request.
+            vTaskDelete(task_);
+            task_ = nullptr;
+        }
+        stop_requested_ = false;
         tx_pending_ = false;
-        vTaskDelete(t);
     }
 
     bool running() const noexcept { return task_ != nullptr; }
@@ -109,7 +122,7 @@ private:
         auto* self = static_cast<RadioPumpTask*>(arg);
         const TickType_t period_ticks = pdMS_TO_TICKS(self->period_ms_);
 
-        while (self->task_ != nullptr) {
+        while (self->task_ != nullptr && !self->stop_requested_) {
             if (!self->tx_pending_ && self->tx_queue_) {
                 TxItem item;
                 if (xQueueReceive(self->tx_queue_, &item, 0) == pdTRUE) {
@@ -149,11 +162,13 @@ private:
             }
             portEXIT_CRITICAL(&self->mux_);
         }
+        self->task_ = nullptr;
         vTaskDelete(nullptr);
     }
 
     volatile TaskHandle_t task_       = nullptr;
     LoRaTransceiver*      trx_        = nullptr;
+    volatile bool         stop_requested_ = false;
     std::uint32_t         period_ms_  = 2;
     QueueHandle_t         tx_queue_   = nullptr;
     volatile bool         tx_pending_ = false;

@@ -102,6 +102,16 @@ bool TestTransmitFailsOnSpiError() {
     return true;
 }
 
+bool TestStartContinuousWaveSetsTxContBit() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.start_continuous_wave(), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig2) & 0x08u),
+                 std::uint8_t{0x08});
+    LD_EXPECT_EQ(spi.reg(reg::kOpMode), opmode::kLoRaTx);
+    return true;
+}
+
 int main() {
     LD_RUN(TestTransmitRejectsBeforeBegin);
     LD_RUN(TestTransmitRejectsNullBuffer);
@@ -110,5 +120,6 @@ int main() {
     LD_RUN(TestTransmitWritesFifoAndPayloadLength);
     LD_RUN(TestTransmitSetsTxOpModeAndDio0TxDone);
     LD_RUN(TestTransmitFailsOnSpiError);
+    LD_RUN(TestStartContinuousWaveSetsTxContBit);
     return loradriver::test::report();
 }

@@ -1,6 +1,7 @@
 #include "loradriver/lora_packet.hpp"
 #include "loradriver/radio_event.hpp"
 #include "loradriver/radio_stats.hpp"
+#include "loradriver/version.hpp"
 #include "test_runner.hpp"
 
 using loradriver::LoRaPacket;
@@ -38,10 +39,20 @@ bool TestEventEnumDistinct() {
     return true;
 }
 
+bool TestVersionAccessors() {
+    LD_EXPECT_EQ(loradriver::version_major(), std::uint8_t{1});
+    LD_EXPECT_EQ(loradriver::version_minor(), std::uint8_t{1});
+    LD_EXPECT_EQ(loradriver::version_patch(), std::uint8_t{0});
+    const char* s = loradriver::version_string();
+    LD_EXPECT(s[0] == '1' && s[1] == '.' && s[2] == '1');
+    return true;
+}
+
 int main() {
     LD_RUN(TestStatsDefaultZeroed);
     LD_RUN(TestStatsSnapshotByValue);
     LD_RUN(TestPacketSnrConversion);
     LD_RUN(TestEventEnumDistinct);
+    LD_RUN(TestVersionAccessors);
     return loradriver::test::report();
 }

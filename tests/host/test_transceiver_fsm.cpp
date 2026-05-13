@@ -161,6 +161,34 @@ bool TestOnTxDoneFiresAfterTransmission() {
     return true;
 }
 
+bool TestHeaderCallbackFiresOnValidHeader() {
+    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
+    bool fired = false;
+    trx.on_header([&]() { fired = true; });
+    spi.set_register(reg::kIrqFlags, irq::kValidHeader);
+    drv.handle_interrupt();
+    trx.poll();
+    LD_EXPECT(fired);
+    return true;
+}
+
+bool TestEndClearsCallbacks() {
+    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
+    int rx_callback_calls = 0;
+    trx.on_receive([&rx_callback_calls](const LoRaPacket&, const std::uint8_t*, std::size_t) {
+        ++rx_callback_calls;
+    });
+    trx.end();
+    spi.set_register(reg::kIrqFlags, irq::kRxDone);
+    spi.set_register(reg::kRxNbBytes, 4);
+    drv.handle_interrupt();
+    drv.process_events();
+    LD_EXPECT_EQ(rx_callback_calls, 0);
+    return true;
+}
+
 int main() {
     LD_RUN(TestBeginEntersStandby);
     LD_RUN(TestSleepThenStandby);
@@ -172,5 +200,7 @@ int main() {
     LD_RUN(TestOnReceiveDispatchesPacket);
     LD_RUN(TestOnEventForwardsRadioEvents);
     LD_RUN(TestOnTxDoneFiresAfterTransmission);
+    LD_RUN(TestEndClearsCallbacks);
+    LD_RUN(TestHeaderCallbackFiresOnValidHeader);
     return loradriver::test::report();
 }

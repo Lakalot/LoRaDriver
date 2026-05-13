@@ -42,7 +42,14 @@ LoRaError LoRaTransceiver::begin(const LoRaConfig& cfg) noexcept {
 
 void LoRaTransceiver::end() noexcept {
     if (state_ == State::Uninit) return;
+    // Detach driver callback first so any in-flight IRQ can't reach
+    // user code through a dead lambda capture.
+    driver_.set_event_callback(nullptr);
     driver_.end();
+    packet_cb_  = {};
+    event_cb_   = {};
+    tx_done_cb_ = {};
+    header_cb_  = {};
     state_ = State::Uninit;
 }
 
@@ -94,9 +101,9 @@ LoRaError LoRaTransceiver::start_receive(bool continuous) noexcept {
     return LoRaError::OK;
 }
 
-LoRaError LoRaTransceiver::start_cad() noexcept {
+LoRaError LoRaTransceiver::start_cad(bool auto_rx) noexcept {
     if (state_ == State::Uninit) return LoRaError::NotInitialized;
-    const LoRaError e = driver_.start_cad();
+    const LoRaError e = driver_.start_cad(auto_rx);
     if (e == LoRaError::OK) state_ = State::Cad;
     return e;
 }
@@ -104,6 +111,7 @@ LoRaError LoRaTransceiver::start_cad() noexcept {
 void LoRaTransceiver::on_receive(PacketCallback cb) noexcept  { packet_cb_  = std::move(cb); }
 void LoRaTransceiver::on_event(EventCallback cb)   noexcept  { event_cb_   = std::move(cb); }
 void LoRaTransceiver::on_tx_done(TxDoneCallback cb) noexcept { tx_done_cb_ = std::move(cb); }
+void LoRaTransceiver::on_header(HeaderCallback cb)  noexcept { header_cb_  = std::move(cb); }
 
 void LoRaTransceiver::poll() noexcept {
     if (state_ == State::Uninit) return;
@@ -116,15 +124,16 @@ void LoRaTransceiver::on_driver_event(RadioEvent ev, int param) noexcept {
 
     switch (ev) {
         case RadioEvent::RxDone: {
-            const int n = driver_.read_packet(rx_buf_, sizeof(rx_buf_));
-            if (n > 0 && packet_cb_) {
+            std::size_t n = 0;
+            const LoRaError rr = driver_.read_packet(rx_buf_, sizeof(rx_buf_), n);
+            if (rr == LoRaError::OK && n > 0 && packet_cb_) {
                 LoRaPacket meta{};
                 meta.rssi_dbm           = driver_.packet_rssi();
                 meta.snr_q4             = static_cast<std::int16_t>(driver_.packet_snr() * 4.0f);
                 meta.frequency_error_hz = driver_.frequency_error_hz();
                 meta.length             = static_cast<std::uint8_t>(n);
                 meta.crc_valid          = true;
-                packet_cb_(meta, rx_buf_, static_cast<std::size_t>(n));
+                packet_cb_(meta, rx_buf_, n);
             }
             if (!rx_continuous_) state_ = State::Standby;
             break;
@@ -138,6 +147,9 @@ void LoRaTransceiver::on_driver_event(RadioEvent ev, int param) noexcept {
             break;
         case RadioEvent::CadDone:
             state_ = State::Standby;
+            break;
+        case RadioEvent::ValidHeader:
+            if (header_cb_) header_cb_();
             break;
         default: break;
     }

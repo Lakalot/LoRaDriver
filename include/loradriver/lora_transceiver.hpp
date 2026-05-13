@@ -28,6 +28,7 @@ public:
     using PacketCallback  = std::function<void(const LoRaPacket&, const std::uint8_t*, std::size_t)>;
     using EventCallback   = std::function<void(RadioEvent, int)>;
     using TxDoneCallback  = std::function<void()>;
+    using HeaderCallback  = std::function<void()>;
 
     explicit LoRaTransceiver(IRadioDriver& driver) noexcept;
     ~LoRaTransceiver();
@@ -46,11 +47,12 @@ public:
                                  std::uint32_t timeout_ms = 2000) noexcept;
 
     [[nodiscard]] LoRaError start_receive(bool continuous = true) noexcept;
-    [[nodiscard]] LoRaError start_cad() noexcept;
+    [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept;
 
     void on_receive(PacketCallback cb) noexcept;
     void on_event(EventCallback cb) noexcept;
     void on_tx_done(TxDoneCallback cb) noexcept;
+    void on_header(HeaderCallback cb) noexcept;
 
     void poll() noexcept;
 
@@ -61,6 +63,24 @@ public:
     [[nodiscard]] RadioStats   stats() const noexcept { return driver_.get_stats(); }
     [[nodiscard]] std::uint8_t chip_version() const noexcept { return driver_.chip_version(); }
 
+    /// Heartbeat: cheap RegVersion read. Returns OK if chip still responds.
+    [[nodiscard]] LoRaError check_alive() noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.check_alive();
+    }
+
+    /// Runtime LNA gain (0 = AGC, 1..6 = manual).
+    [[nodiscard]] LoRaError set_lna_gain(std::uint8_t gain) noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.set_lna_gain(gain);
+    }
+
+    /// Enable or disable over-current protection at runtime.
+    [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.set_ocp_enabled(enabled);
+    }
+
     /// Forwarded to the underlying driver (use from ISR shim).
     void handle_interrupt() noexcept { driver_.handle_interrupt(); }
 
@@ -70,6 +90,7 @@ private:
     PacketCallback   packet_cb_{};
     EventCallback    event_cb_{};
     TxDoneCallback   tx_done_cb_{};
+    HeaderCallback   header_cb_{};
     bool             rx_continuous_ = false;
     std::uint8_t     rx_buf_[255]{};
 

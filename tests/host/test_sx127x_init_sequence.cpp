@@ -157,6 +157,186 @@ bool TestBeginRejectsSpiFailure() {
     return true;
 }
 
+// Fake that drops every write to RegOpMode (chip is dead but bus says OK).
+class DeadOpModeFakeSpi : public FakeSpiDevice {
+public:
+    [[nodiscard]] LoRaError transfer(std::uint8_t addr,
+                                     const std::uint8_t* tx,
+                                     std::uint8_t* rx,
+                                     std::size_t len) noexcept override {
+        const bool is_write = (addr & 0x80u) != 0u;
+        const std::uint8_t r = addr & 0x7Fu;
+        if (is_write && r == 0x01 /*OpMode*/) {
+            // Silently swallow the write, then let read see the old value.
+            return LoRaError::OK;
+        }
+        return FakeSpiDevice::transfer(addr, tx, rx, len);
+    }
+};
+
+bool TestBeginDetectsDeadOpModeRegister() {
+    DeadOpModeFakeSpi spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::SpiVerifyMismatch);
+    return true;
+}
+
+bool TestSf6ImplicitHeaderInitOk() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.spreading_factor = 6;
+    c.implicit_header = true;
+    c.crc_enabled = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig1) & 0x01u),
+                 std::uint8_t{0x01});
+    LD_EXPECT_EQ(spi.reg(reg::kDetectionOptimize), std::uint8_t{0x05});
+    LD_EXPECT_EQ(spi.reg(reg::kDetectionThreshold), std::uint8_t{0x0C});
+    return true;
+}
+
+bool TestTcxoEnabledSetsTcxoInputBit() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.tcxo_enabled = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kTcxo) & 0x10u),
+                 std::uint8_t{0x10});
+    return true;
+}
+
+bool TestTcxoDisabledLeavesXtalDefault() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.tcxo_enabled = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kTcxo) & 0x10u, std::uint8_t{0});
+    return true;
+}
+
+bool TestInvertIqWritesBothRegisters() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.invert_iq = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kInvertIq) & 0x40u),
+                 std::uint8_t{0x40});
+    LD_EXPECT_EQ(spi.reg(reg::kInvertIq2), std::uint8_t{0x19});
+    return true;
+}
+
+bool TestInvertIqDisabledKeepsDefaults() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.invert_iq = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kInvertIq) & 0x40u, std::uint8_t{0});
+    return true;
+}
+
+bool TestBeginCalibratesRxImage() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    bool saw_cal = false;
+    for (const auto& w : spi.writes()) {
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u) saw_cal = true;
+    }
+    LD_EXPECT(saw_cal);
+    return true;
+}
+
+bool TestSymbolTimeoutUsesConfigValueDirectly() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.symbol_timeout = 0x140;  // 320, fits in 10 bits
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kSymbTimeoutLsb), std::uint8_t{0x40});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig2) & 0x03u),
+                 std::uint8_t{0x01});
+    return true;
+}
+
+bool TestInitSetsTxBaseTo0AndRxBaseTo128() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kFifoTxBaseAddr), std::uint8_t{0});
+    LD_EXPECT_EQ(spi.reg(reg::kFifoRxBaseAddr), std::uint8_t{128});
+    return true;
+}
+
+bool TestBeginSx1278At433MHzWritesCorrectFrf() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.chip = ChipModel::SX1278;
+    c.frequency_hz = 433'920'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    const std::uint64_t frf = (static_cast<std::uint64_t>(433'920'000u) << 19) / 32'000'000ull;
+    LD_EXPECT_EQ(spi.reg(reg::kFrMsb), static_cast<std::uint8_t>((frf >> 16) & 0xFF));
+    LD_EXPECT_EQ(spi.reg(reg::kFrMid), static_cast<std::uint8_t>((frf >> 8) & 0xFF));
+    LD_EXPECT_EQ(spi.reg(reg::kFrLsb), static_cast<std::uint8_t>(frf & 0xFF));
+    return true;
+}
+
+bool TestBeginSx1278RejectsHighBandFrequency() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.chip = ChipModel::SX1278;
+    c.frequency_hz = 868'000'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::InvalidConfig);
+    return true;
+}
+
+bool TestStandbyToTxVerifiesOpMode() {
+    FakeSpiDevice good;
+    SX127xDriver drv_ok(good);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    LD_EXPECT_EQ(drv_ok.begin(c), LoRaError::OK);
+    good.set_dead_after_writes(reg::kOpMode, 1);
+    const std::uint8_t buf[2] = {0xAA, 0x55};
+    LD_EXPECT_EQ(drv_ok.start_transmit(buf, 2, 1000), LoRaError::SpiVerifyMismatch);
+    return true;
+}
+
+bool TestBeginPulsesResetWhenAutoResetTrue() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = true;
+    int reset_calls = 0;
+    SX127xDriver::s_reset_hook_ = [&reset_calls]() { ++reset_calls; };
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    SX127xDriver::s_reset_hook_ = nullptr;
+    LD_EXPECT_EQ(reset_calls, 1);
+    return true;
+}
+
+bool TestBeginSkipsResetWhenAutoResetFalse() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    int reset_calls = 0;
+    SX127xDriver::s_reset_hook_ = [&reset_calls]() { ++reset_calls; };
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    SX127xDriver::s_reset_hook_ = nullptr;
+    LD_EXPECT_EQ(reset_calls, 0);
+    return true;
+}
+
 int main() {
     LD_RUN(TestBeginRejectsInvalidConfig);
     LD_RUN(TestBeginRejectsMissingChip);
@@ -170,5 +350,19 @@ int main() {
     LD_RUN(TestBeginAppliesOcp100mA);
     LD_RUN(TestBeginClearsIrqFlags);
     LD_RUN(TestBeginRejectsSpiFailure);
+    LD_RUN(TestBeginPulsesResetWhenAutoResetTrue);
+    LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
+    LD_RUN(TestBeginDetectsDeadOpModeRegister);
+    LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestSf6ImplicitHeaderInitOk);
+    LD_RUN(TestTcxoEnabledSetsTcxoInputBit);
+    LD_RUN(TestTcxoDisabledLeavesXtalDefault);
+    LD_RUN(TestInvertIqWritesBothRegisters);
+    LD_RUN(TestInvertIqDisabledKeepsDefaults);
+    LD_RUN(TestBeginCalibratesRxImage);
+    LD_RUN(TestSymbolTimeoutUsesConfigValueDirectly);
+    LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
+    LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
+    LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
     return loradriver::test::report();
 }

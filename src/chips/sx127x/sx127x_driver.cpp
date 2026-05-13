@@ -32,6 +32,23 @@ std::uint8_t ocp_trim(std::uint8_t ma) noexcept {
     return 27u;  // = 240 mA cap
 }
 
+void pulse_reset(const LoRaConfig& cfg) noexcept {
+    if (SX127xDriver::s_reset_hook_) {
+        SX127xDriver::s_reset_hook_();
+        return;
+    }
+#ifdef ARDUINO
+    if (cfg.pin_reset < 0) return;
+    pinMode(cfg.pin_reset, OUTPUT);
+    digitalWrite(cfg.pin_reset, LOW);
+    delay(cfg.reset_low_ms);
+    digitalWrite(cfg.pin_reset, HIGH);
+    delay(cfg.reset_settle_ms);
+#else
+    (void)cfg;  // host build with no hook: skip
+#endif
+}
+
 }  // namespace
 
 std::uint32_t SX127xDriver::now_ms() noexcept {
@@ -65,18 +82,28 @@ std::int16_t SX127xDriver::rssi_offset() const noexcept {
 }
 
 void SX127xDriver::emit(RadioEvent ev, int param) noexcept {
-    if (event_cb_) {
-#if __cpp_exceptions
-        try { event_cb_(ev, param); } catch (...) { ++stats_.callback_exceptions; }
-#else
-        event_cb_(ev, param);
-#endif
-    }
+    // Callbacks must be noexcept (documented in docs/api.md). The driver
+    // is built with -fno-exceptions on Clang/GCC; a throwing callback
+    // is undefined behaviour.
+    if (event_cb_) event_cb_(ev, param);
 }
 
 LoRaError SX127xDriver::set_op_mode(std::uint8_t mode) noexcept {
-    const LoRaError e = spi_.write_register(reg::kOpMode, mode);
+    LoRaError e = spi_.write_register(reg::kOpMode, mode);
     if (e != LoRaError::OK) return e;
+    // Read-back verify on critical mode transitions: TX, RX (any), CAD.
+    // Skip verify on sleep/standby pairs since the init sequence verify
+    // step already covers them.
+    const bool needs_verify = (mode == opmode::kLoRaTx ||
+                               mode == opmode::kLoRaRxCont ||
+                               mode == opmode::kLoRaRxSingle ||
+                               mode == opmode::kLoRaCad);
+    if (needs_verify) {
+        std::uint8_t readback = 0;
+        e = spi_.read_register(reg::kOpMode, readback);
+        if (e != LoRaError::OK) return e;
+        if (readback != mode) return LoRaError::SpiVerifyMismatch;
+    }
     op_mode_shadow_ = mode;
     return LoRaError::OK;
 }
@@ -99,22 +126,36 @@ LoRaError SX127xDriver::apply_modem_config(const LoRaConfig& cfg) noexcept {
     LoRaError e;
     if ((e = spi_.write_register(reg::kModemConfig1, mc1)) != LoRaError::OK) return e;
 
-    // ModemConfig2: SF[7:4] | TxContinuous[3]=0 | CRC[2] | SymbTimeoutMsb[1:0]=11
+    // ModemConfig2: SF[7:4] | TxContinuous[3]=0 | CRC[2] | SymbTimeoutMsb[1:0]
+    const std::uint16_t symb_to = (cfg.symbol_timeout > 0x3FFu)
+        ? std::uint16_t{0x3FFu}
+        : cfg.symbol_timeout;
     const std::uint8_t mc2 = static_cast<std::uint8_t>(
         (cfg.spreading_factor << 4) |
         (cfg.crc_enabled ? 0x04u : 0x00u) |
-        0x03u);
+        ((symb_to >> 8) & 0x03u));
     if ((e = spi_.write_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
 
     // SymbTimeoutLsb
     if ((e = spi_.write_register(reg::kSymbTimeoutLsb,
-                                 static_cast<std::uint8_t>(cfg.symbol_timeout & 0xFFu))) != LoRaError::OK) return e;
+                                 static_cast<std::uint8_t>(symb_to & 0xFFu))) != LoRaError::OK) return e;
 
     // ModemConfig3: LDRO[3] | AgcAuto[2]
     const bool ldro = cfg.ldro_auto && cfg.ldro_required();
     const std::uint8_t mc3 = static_cast<std::uint8_t>(
         (ldro ? 0x08u : 0x00u) | (cfg.agc_auto ? 0x04u : 0x00u));
-    return spi_.write_register(reg::kModemConfig3, mc3);
+    if ((e = spi_.write_register(reg::kModemConfig3, mc3)) != LoRaError::OK) return e;
+
+    // SF6 requires specific DetectionOptimize and DetectionThreshold values
+    // (datasheet table 28). Other SF: defaults.
+    if (cfg.spreading_factor == 6u) {
+        if ((e = spi_.write_register(reg::kDetectionOptimize, 0x05)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kDetectionThreshold, 0x0C)) != LoRaError::OK) return e;
+    } else {
+        if ((e = spi_.write_register(reg::kDetectionOptimize, 0x03)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kDetectionThreshold, 0x0A)) != LoRaError::OK) return e;
+    }
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::apply_tx_power(std::int8_t dbm, PaOutput out) noexcept {
@@ -163,8 +204,17 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
     if ((e = spi_.read_register(reg::kVersion, chip_version_)) != LoRaError::OK) return e;
     if (chip_version_ != kVersionExpected) return LoRaError::UnsupportedChip;
 
-    // FSK sleep → LoRa sleep (precondition for switching mode bit)
+    // TCXO config: if enabled, set TcxoInputOn (bit 4). Datasheet §6.6.
+    {
+        std::uint8_t tcxo = 0;
+        if ((e = spi_.read_register(reg::kTcxo, tcxo)) != LoRaError::OK) return e;
+        if (cfg.tcxo_enabled) tcxo |= 0x10u; else tcxo &= ~0x10u;
+        if ((e = spi_.write_register(reg::kTcxo, tcxo)) != LoRaError::OK) return e;
+    }
+
+    // FSK sleep → image calibration → LoRa sleep
     if ((e = set_op_mode(opmode::kFskSleep))  != LoRaError::OK) return e;
+    if ((e = run_rx_image_calibration()) != LoRaError::OK) return e;
     if ((e = set_op_mode(opmode::kLoRaSleep)) != LoRaError::OK) return e;
 
     // Verify LoRa bit (read-back of OpMode)
@@ -197,12 +247,19 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
         (cfg.lna_boost_rx ? 0x03u : 0x00u));
     if ((e = spi_.write_register(reg::kLna, lna)) != LoRaError::OK) return e;
 
+    // Invert IQ (datasheet table 23). Std: 0x27/0x1D, Inverted: 0x67/0x19.
+    const std::uint8_t inv_iq  = cfg.invert_iq ? std::uint8_t{0x67} : std::uint8_t{0x27};
+    const std::uint8_t inv_iq2 = cfg.invert_iq ? std::uint8_t{0x19} : std::uint8_t{0x1D};
+    if ((e = spi_.write_register(reg::kInvertIq,  inv_iq))  != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kInvertIq2, inv_iq2)) != LoRaError::OK) return e;
+
     // Errata
     if ((e = apply_errata(cfg.bandwidth_hz, cfg.frequency_hz)) != LoRaError::OK) return e;
 
-    // FIFO base addresses (split FIFO: TX=0, RX=0 — overwrite-safe via FifoAddrPtr)
+    // FIFO base addresses: split halves so concurrent TX prep and RX cannot
+    // stomp each other. TX writes from 0, RX receives into 128.
     if ((e = spi_.write_register(reg::kFifoTxBaseAddr, 0)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 128)) != LoRaError::OK) return e;
 
     // DIO mapping: DIO0=RxDone by default
     if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0RxDone)) != LoRaError::OK) return e;
@@ -221,6 +278,10 @@ LoRaError SX127xDriver::begin(const LoRaConfig& cfg) noexcept {
 
     LoRaError e = cfg.validate();
     if (e != LoRaError::OK) return e;
+
+    if (cfg.auto_reset) {
+        pulse_reset(cfg);
+    }
 
     if ((e = spi_.begin()) != LoRaError::OK) return e;
 
@@ -277,6 +338,47 @@ LoRaError SX127xDriver::set_bandwidth(std::uint32_t hz) noexcept {
     return apply_errata(cfg_.bandwidth_hz, cfg_.frequency_hz);
 }
 
+LoRaError SX127xDriver::set_lna_gain(std::uint8_t gain) noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    if (gain > 6u) return LoRaError::InvalidConfig;
+    if (gain == 0u) {
+        // AGC on, ModemConfig3 bit 2 set
+        std::uint8_t mc3 = 0;
+        const LoRaError e1 = spi_.read_register(reg::kModemConfig3, mc3);
+        if (e1 != LoRaError::OK) return e1;
+        mc3 |= 0x04u;
+        return spi_.write_register(reg::kModemConfig3, mc3);
+    }
+    // AGC off + RegLna LnaGain field
+    std::uint8_t mc3 = 0;
+    if (spi_.read_register(reg::kModemConfig3, mc3) != LoRaError::OK) return LoRaError::SpiFailure;
+    mc3 &= ~0x04u;
+    const LoRaError e2 = spi_.write_register(reg::kModemConfig3, mc3);
+    if (e2 != LoRaError::OK) return e2;
+    const std::uint8_t lna = static_cast<std::uint8_t>(
+        (gain << 5) | (cfg_.lna_boost_rx ? 0x03u : 0x00u));
+    return spi_.write_register(reg::kLna, lna);
+}
+
+LoRaError SX127xDriver::set_ocp_enabled(bool enabled) noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    std::uint8_t v = 0;
+    LoRaError e = spi_.read_register(reg::kOcp, v);
+    if (e != LoRaError::OK) return e;
+    if (enabled) v |= 0x20u; else v &= ~0x20u;
+    return spi_.write_register(reg::kOcp, v);
+}
+
+LoRaError SX127xDriver::start_continuous_wave() noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    LoRaError e;
+    std::uint8_t mc2 = 0;
+    if ((e = spi_.read_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
+    mc2 |= 0x08u;  // TxContinuousMode
+    if ((e = spi_.write_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
+    return set_op_mode(opmode::kLoRaTx);
+}
+
 // --- TX / RX / CAD / IRQ stubs — implemented in Tasks 3.5–3.7 ---
 
 LoRaError SX127xDriver::start_transmit(const std::uint8_t* data,
@@ -308,30 +410,42 @@ LoRaError SX127xDriver::start_receive(bool continuous) noexcept {
     if (!initialized_) return LoRaError::NotInitialized;
     LoRaError e;
     if ((e = set_op_mode(opmode::kLoRaStandby)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 0)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoAddrPtr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 128)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoAddrPtr, 128)) != LoRaError::OK) return e;
     if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0RxDone)) != LoRaError::OK) return e;
-    return set_op_mode(continuous ? opmode::kLoRaRxCont : opmode::kLoRaRxSingle);
+    e = set_op_mode(continuous ? opmode::kLoRaRxCont : opmode::kLoRaRxSingle);
+    if (e == LoRaError::OK && continuous && cfg_.rx_silence_timeout_ms > 0) {
+        rx_silence_deadline_ms_ = now_ms() + cfg_.rx_silence_timeout_ms;
+    } else {
+        rx_silence_deadline_ms_ = 0;
+    }
+    return e;
 }
 
-int SX127xDriver::read_packet(std::uint8_t* buf, std::size_t max_len) noexcept {
-    if (!initialized_ || buf == nullptr || max_len == 0u) return 0;
+LoRaError SX127xDriver::read_packet(std::uint8_t* buf,
+                                    std::size_t max_len,
+                                    std::size_t& out_len) noexcept {
+    out_len = 0;
+    if (!initialized_) return LoRaError::NotInitialized;
+    if (buf == nullptr || max_len == 0u) return LoRaError::NullArgument;
 
     std::uint8_t rx_addr = 0;
     std::uint8_t nb_bytes = 0;
-    if (spi_.read_register(reg::kFifoRxCurrentAddr, rx_addr) != LoRaError::OK) return 0;
-    if (spi_.read_register(reg::kRxNbBytes, nb_bytes) != LoRaError::OK) return 0;
-    if (nb_bytes == 0u) return 0;
+    LoRaError e;
+    if ((e = spi_.read_register(reg::kFifoRxCurrentAddr, rx_addr)) != LoRaError::OK) return e;
+    if ((e = spi_.read_register(reg::kRxNbBytes, nb_bytes)) != LoRaError::OK) return e;
+    if (nb_bytes == 0u) return LoRaError::OK;
 
     const std::size_t to_read = (nb_bytes <= max_len) ? nb_bytes : max_len;
-    if (spi_.write_register(reg::kFifoAddrPtr, rx_addr) != LoRaError::OK) return 0;
-    if (spi_.burst_read(reg::kFifo, buf, to_read) != LoRaError::OK) return 0;
-
-    return static_cast<int>(to_read);
+    if ((e = spi_.write_register(reg::kFifoAddrPtr, rx_addr)) != LoRaError::OK) return e;
+    if ((e = spi_.burst_read(reg::kFifo, buf, to_read)) != LoRaError::OK) return e;
+    out_len = to_read;
+    return LoRaError::OK;
 }
 
-LoRaError SX127xDriver::start_cad() noexcept {
+LoRaError SX127xDriver::start_cad(bool auto_rx) noexcept {
     if (!initialized_) return LoRaError::NotInitialized;
+    cad_auto_rx_ = auto_rx;
     LoRaError e = spi_.write_register(reg::kDioMapping1, dio::kDio0CadDone);
     if (e != LoRaError::OK) return e;
     return set_op_mode(opmode::kLoRaCad);
@@ -369,7 +483,25 @@ void SX127xDriver::process_events() noexcept {
         emit(RadioEvent::TxTimeout, 0);
     }
 
-    // Drain IRQ queue (max kIrqQueueSize iterations)
+    // RX silence watchdog
+    if (rx_silence_deadline_ms_ != 0u && now_ms() >= rx_silence_deadline_ms_) {
+        rx_silence_deadline_ms_ = 0u;  // disarm to avoid storm
+        ++stats_.rx_timeout;
+        emit(RadioEvent::RxTimeout, 0);
+        (void)set_op_mode(opmode::kLoRaStandby);
+    }
+
+    // Drain IRQ queue (max kIrqQueueSize iterations).
+    // In polling_mode, synthesize a queue entry so the loop runs once per
+    // process_events() call even without handle_interrupt being invoked.
+    if (cfg_.polling_mode && irq_tail_ == irq_head_) {
+        const std::uint8_t next = static_cast<std::uint8_t>((irq_head_ + 1u) % kIrqQueueSize);
+        if (next != irq_tail_) {
+            irq_queue_[irq_head_] = 1u;
+            irq_head_ = next;
+        }
+    }
+
     std::uint8_t iters = 0;
     while (irq_tail_ != irq_head_ && iters < kIrqQueueSize) {
         irq_tail_ = static_cast<std::uint8_t>((irq_tail_ + 1u) % kIrqQueueSize);
@@ -377,6 +509,7 @@ void SX127xDriver::process_events() noexcept {
 
         std::uint8_t flags = 0;
         if (spi_.read_register(reg::kIrqFlags, flags) != LoRaError::OK) continue;
+        if (flags == 0u) continue;  // synthetic poll with nothing to do
 
         // Clear flags (write 1 to clear)
         (void)spi_.write_register(reg::kIrqFlags, irq::kClearAll);
@@ -393,6 +526,9 @@ void SX127xDriver::process_events() noexcept {
             stats_.last_rssi_dbm = static_cast<std::int16_t>(rssi_offset() + rssi_raw);
             stats_.last_snr_q4   = static_cast<std::int16_t>(static_cast<std::int8_t>(snr_raw));
             ++stats_.rx_done;
+            if (cfg_.rx_silence_timeout_ms > 0u) {
+                rx_silence_deadline_ms_ = now_ms() + cfg_.rx_silence_timeout_ms;
+            }
             emit(RadioEvent::RxDone, flags);
         }
 
@@ -406,8 +542,12 @@ void SX127xDriver::process_events() noexcept {
             emit(RadioEvent::RxTimeout, flags);
         }
         if (flags & irq::kCadDone) {
-            const int detected = (flags & irq::kCadDetected) ? 1 : 0;
-            emit(RadioEvent::CadDone, detected);
+            const bool detected = (flags & irq::kCadDetected) != 0u;
+            emit(RadioEvent::CadDone, detected ? 1 : 0);
+            if (cad_auto_rx_ && detected) {
+                (void)start_receive(true);
+            }
+            cad_auto_rx_ = false;
         }
         if (flags & irq::kValidHeader) {
             emit(RadioEvent::ValidHeader, flags);
@@ -418,6 +558,36 @@ void SX127xDriver::process_events() noexcept {
     const std::uint8_t backlog = static_cast<std::uint8_t>(
         (irq_head_ + kIrqQueueSize - irq_tail_) % kIrqQueueSize);
     if (backlog > stats_.max_irq_backlog) stats_.max_irq_backlog = backlog;
+}
+
+LoRaError SX127xDriver::run_rx_image_calibration() noexcept {
+    // Datasheet §4.2.3.8: image calibration must be done in FSK mode.
+    // We're called between FSK sleep and LoRa sleep in apply_init_sequence,
+    // so the chip is already in FSK access mode.
+    LoRaError e;
+    std::uint8_t v = 0;
+    if ((e = spi_.read_register(reg::kImageCal, v)) != LoRaError::OK) return e;
+    v |= 0x40u;  // ImageCalStart bit
+    if ((e = spi_.write_register(reg::kImageCal, v)) != LoRaError::OK) return e;
+
+    // Wait for ImageCalRunning to clear (bit 5). Bounded poll, ~1 ms.
+    for (int i = 0; i < 100; ++i) {
+        if (spi_.read_register(reg::kImageCal, v) != LoRaError::OK) return LoRaError::SpiFailure;
+        if ((v & 0x20u) == 0u) return LoRaError::OK;
+#ifdef ARDUINO
+        delayMicroseconds(10);
+#endif
+    }
+    return LoRaError::OK;  // best-effort
+}
+
+LoRaError SX127xDriver::check_alive() noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    std::uint8_t v = 0;
+    const LoRaError e = spi_.read_register(reg::kVersion, v);
+    if (e != LoRaError::OK) return e;
+    if (v != kVersionExpected) return LoRaError::UnsupportedChip;
+    return LoRaError::OK;
 }
 
 }  // namespace loradriver::chips

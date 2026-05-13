@@ -159,7 +159,25 @@ bool TestLdroRequiredForSlowSymbols() {
     return true;
 }
 
+bool TestSx1277RejectsSf10AndAbove() {
+    LoRaConfig c = MakeValidSx1276();
+    c.chip = ChipModel::SX1277;
+    c.spreading_factor = 10;
+    LD_EXPECT_EQ(c.validate(), LoRaError::InvalidConfig);
+    return true;
+}
+
+bool TestSx1279Allows868MHz() {
+    LoRaConfig c = MakeValidSx1276();
+    c.chip = ChipModel::SX1279;
+    c.frequency_hz = 868'000'000u;
+    LD_EXPECT_EQ(c.validate(), LoRaError::OK);
+    return true;
+}
+
 int main() {
+    LD_RUN(TestSx1277RejectsSf10AndAbove);
+    LD_RUN(TestSx1279Allows868MHz);
     LD_RUN(TestDefaultIsValid);
     LD_RUN(TestRejectsSx1278WithHighBand);
     LD_RUN(TestAcceptsSx1276WithHighBand);

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
 #include "loradriver/hal/spi_device.hpp"
 #include "loradriver/lora_config.hpp"
@@ -12,11 +13,18 @@ namespace loradriver::chips {
 
 class SX127xDriver final : public IRadioDriver {
 public:
+    /// Host-test injection point: function called by begin() in lieu of GPIO.
+    /// On Arduino targets this stays nullptr and the driver pulses pin_reset
+    /// directly via digitalWrite.
+    using ResetHook = std::function<void()>;
+    static inline ResetHook s_reset_hook_{};
+
     explicit SX127xDriver(hal::ISpiDevice& spi) noexcept : spi_(spi) {}
 
     [[nodiscard]] LoRaError begin(const LoRaConfig& cfg) noexcept override;
     void end() noexcept override;
     [[nodiscard]] std::uint8_t chip_version() const noexcept override { return chip_version_; }
+    [[nodiscard]] LoRaError check_alive() noexcept override;
 
     [[nodiscard]] LoRaError set_sleep() noexcept override;
     [[nodiscard]] LoRaError set_standby() noexcept override;
@@ -27,14 +35,19 @@ public:
     [[nodiscard]] bool is_transmitting() const noexcept override { return tx_in_progress_; }
 
     [[nodiscard]] LoRaError start_receive(bool continuous) noexcept override;
-    [[nodiscard]] int read_packet(std::uint8_t* buf, std::size_t max_len) noexcept override;
+    [[nodiscard]] LoRaError read_packet(std::uint8_t* buf,
+                                        std::size_t max_len,
+                                        std::size_t& out_len) noexcept override;
 
-    [[nodiscard]] LoRaError start_cad() noexcept override;
+    [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept override;
 
     [[nodiscard]] LoRaError set_frequency(std::uint32_t hz) noexcept override;
     [[nodiscard]] LoRaError set_tx_power(std::int8_t dbm, PaOutput out) noexcept override;
     [[nodiscard]] LoRaError set_spreading_factor(std::uint8_t sf) noexcept override;
     [[nodiscard]] LoRaError set_bandwidth(std::uint32_t hz) noexcept override;
+    [[nodiscard]] LoRaError set_lna_gain(std::uint8_t gain) noexcept override;
+    [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept override;
+    [[nodiscard]] LoRaError start_continuous_wave() noexcept override;
 
     [[nodiscard]] std::int16_t packet_rssi() const noexcept override { return stats_.last_rssi_dbm; }
     [[nodiscard]] float packet_snr() const noexcept override {
@@ -63,7 +76,9 @@ private:
     bool         initialized_  = false;
     bool         tx_in_progress_ = false;
     std::uint32_t tx_deadline_ms_ = 0;
+    std::uint32_t rx_silence_deadline_ms_ = 0;  // 0 = disarmed
     std::uint8_t  op_mode_shadow_ = 0;
+    bool          cad_auto_rx_ = false;
 
     // IRQ ring buffer (filled by handle_interrupt, drained by process_events)
     static constexpr std::uint8_t kIrqQueueSize = 16;
@@ -78,6 +93,7 @@ private:
     [[nodiscard]] LoRaError apply_ocp(std::uint8_t ma) noexcept;
     [[nodiscard]] LoRaError apply_frequency(std::uint32_t hz) noexcept;
     [[nodiscard]] LoRaError apply_errata(std::uint32_t bw_hz, std::uint32_t freq_hz) noexcept;
+    [[nodiscard]] LoRaError run_rx_image_calibration() noexcept;
 
     [[nodiscard]] static std::uint32_t now_ms() noexcept;
     [[nodiscard]] static std::uint8_t bw_code(std::uint32_t hz) noexcept;

@@ -42,9 +42,11 @@ constexpr std::uint8_t kHighBwOptimize1    = 0x36;
 constexpr std::uint8_t kDetectionThreshold = 0x37;
 constexpr std::uint8_t kSyncWord           = 0x39;
 constexpr std::uint8_t kHighBwOptimize2    = 0x3A;
-constexpr std::uint8_t kInvertIq2          = 0x3B;
+constexpr std::uint8_t kImageCal           = 0x3B;  // FSK mode access
+constexpr std::uint8_t kInvertIq2          = kImageCal;  // LoRa mode alias
 constexpr std::uint8_t kDioMapping1        = 0x40;
 constexpr std::uint8_t kVersion            = 0x42;
+constexpr std::uint8_t kTcxo               = 0x4B;
 constexpr std::uint8_t kPaDac              = 0x4D;
 
 }  // namespace loradriver::chips::sx127x::reg
