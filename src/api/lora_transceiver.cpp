@@ -1,6 +1,10 @@
 #include "loradriver/lora_transceiver.hpp"
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#else
 #include <chrono>
+#endif
 #include <cstring>
 
 namespace loradriver {
@@ -8,8 +12,7 @@ namespace loradriver {
 namespace {
 std::uint32_t now_ms() noexcept {
 #ifdef ARDUINO
-    extern unsigned long millis();
-    return static_cast<std::uint32_t>(millis());
+    return static_cast<std::uint32_t>(::millis());
 #else
     using namespace std::chrono;
     return static_cast<std::uint32_t>(
