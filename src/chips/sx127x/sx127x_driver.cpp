@@ -375,8 +375,9 @@ int SX127xDriver::read_packet(std::uint8_t* buf, std::size_t max_len) noexcept {
     return static_cast<int>(to_read);
 }
 
-LoRaError SX127xDriver::start_cad() noexcept {
+LoRaError SX127xDriver::start_cad(bool auto_rx) noexcept {
     if (!initialized_) return LoRaError::NotInitialized;
+    cad_auto_rx_ = auto_rx;
     LoRaError e = spi_.write_register(reg::kDioMapping1, dio::kDio0CadDone);
     if (e != LoRaError::OK) return e;
     return set_op_mode(opmode::kLoRaCad);
@@ -473,8 +474,12 @@ void SX127xDriver::process_events() noexcept {
             emit(RadioEvent::RxTimeout, flags);
         }
         if (flags & irq::kCadDone) {
-            const int detected = (flags & irq::kCadDetected) ? 1 : 0;
-            emit(RadioEvent::CadDone, detected);
+            const bool detected = (flags & irq::kCadDetected) != 0u;
+            emit(RadioEvent::CadDone, detected ? 1 : 0);
+            if (cad_auto_rx_ && detected) {
+                (void)start_receive(true);
+            }
+            cad_auto_rx_ = false;
         }
         if (flags & irq::kValidHeader) {
             emit(RadioEvent::ValidHeader, flags);

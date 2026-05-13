@@ -37,7 +37,7 @@ public:
     [[nodiscard]] virtual LoRaError start_receive(bool continuous = true) noexcept = 0;
     [[nodiscard]] virtual int read_packet(std::uint8_t* buf, std::size_t max_len) noexcept = 0;
 
-    [[nodiscard]] virtual LoRaError start_cad() noexcept = 0;
+    [[nodiscard]] virtual LoRaError start_cad(bool auto_rx = false) noexcept = 0;
 
     [[nodiscard]] virtual LoRaError set_frequency(std::uint32_t hz) noexcept = 0;
     [[nodiscard]] virtual LoRaError set_tx_power(std::int8_t dbm, PaOutput out) noexcept = 0;

@@ -100,9 +100,9 @@ LoRaError LoRaTransceiver::start_receive(bool continuous) noexcept {
     return LoRaError::OK;
 }
 
-LoRaError LoRaTransceiver::start_cad() noexcept {
+LoRaError LoRaTransceiver::start_cad(bool auto_rx) noexcept {
     if (state_ == State::Uninit) return LoRaError::NotInitialized;
-    const LoRaError e = driver_.start_cad();
+    const LoRaError e = driver_.start_cad(auto_rx);
     if (e == LoRaError::OK) state_ = State::Cad;
     return e;
 }

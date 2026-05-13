@@ -37,7 +37,7 @@ public:
     [[nodiscard]] LoRaError start_receive(bool continuous) noexcept override;
     [[nodiscard]] int read_packet(std::uint8_t* buf, std::size_t max_len) noexcept override;
 
-    [[nodiscard]] LoRaError start_cad() noexcept override;
+    [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept override;
 
     [[nodiscard]] LoRaError set_frequency(std::uint32_t hz) noexcept override;
     [[nodiscard]] LoRaError set_tx_power(std::int8_t dbm, PaOutput out) noexcept override;
@@ -73,6 +73,7 @@ private:
     std::uint32_t tx_deadline_ms_ = 0;
     std::uint32_t rx_silence_deadline_ms_ = 0;  // 0 = disarmed
     std::uint8_t  op_mode_shadow_ = 0;
+    bool          cad_auto_rx_ = false;
 
     // IRQ ring buffer (filled by handle_interrupt, drained by process_events)
     static constexpr std::uint8_t kIrqQueueSize = 16;

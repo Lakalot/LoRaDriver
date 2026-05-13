@@ -46,7 +46,7 @@ public:
                                  std::uint32_t timeout_ms = 2000) noexcept;
 
     [[nodiscard]] LoRaError start_receive(bool continuous = true) noexcept;
-    [[nodiscard]] LoRaError start_cad() noexcept;
+    [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept;
 
     void on_receive(PacketCallback cb) noexcept;
     void on_event(EventCallback cb) noexcept;
