@@ -403,7 +403,17 @@ void SX127xDriver::process_events() noexcept {
         emit(RadioEvent::TxTimeout, 0);
     }
 
-    // Drain IRQ queue (max kIrqQueueSize iterations)
+    // Drain IRQ queue (max kIrqQueueSize iterations).
+    // In polling_mode, synthesize a queue entry so the loop runs once per
+    // process_events() call even without handle_interrupt being invoked.
+    if (cfg_.polling_mode && irq_tail_ == irq_head_) {
+        const std::uint8_t next = static_cast<std::uint8_t>((irq_head_ + 1u) % kIrqQueueSize);
+        if (next != irq_tail_) {
+            irq_queue_[irq_head_] = 1u;
+            irq_head_ = next;
+        }
+    }
+
     std::uint8_t iters = 0;
     while (irq_tail_ != irq_head_ && iters < kIrqQueueSize) {
         irq_tail_ = static_cast<std::uint8_t>((irq_tail_ + 1u) % kIrqQueueSize);
@@ -411,6 +421,7 @@ void SX127xDriver::process_events() noexcept {
 
         std::uint8_t flags = 0;
         if (spi_.read_register(reg::kIrqFlags, flags) != LoRaError::OK) continue;
+        if (flags == 0u) continue;  // synthetic poll with nothing to do
 
         // Clear flags (write 1 to clear)
         (void)spi_.write_register(reg::kIrqFlags, irq::kClearAll);

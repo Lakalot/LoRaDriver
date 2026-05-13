@@ -132,6 +132,38 @@ bool TestTxWatchdogTimeout() {
     return true;
 }
 
+bool TestPollingModeReadsIrqFlagsWithoutInterrupt() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.polling_mode = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    int rxdone_count = 0;
+    drv.set_event_callback([&rxdone_count](RadioEvent ev, int) {
+        if (ev == RadioEvent::RxDone) ++rxdone_count;
+    });
+    spi.set_register(reg::kIrqFlags, irq::kRxDone);
+    drv.process_events();
+    LD_EXPECT_EQ(rxdone_count, 1);
+    return true;
+}
+
+bool TestNonPollingModeIgnoresIrqFlagsWithoutInterrupt() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.polling_mode = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    int rxdone_count = 0;
+    drv.set_event_callback([&rxdone_count](RadioEvent ev, int) {
+        if (ev == RadioEvent::RxDone) ++rxdone_count;
+    });
+    spi.set_register(reg::kIrqFlags, irq::kRxDone);
+    drv.process_events();
+    LD_EXPECT_EQ(rxdone_count, 0);
+    return true;
+}
+
 int main() {
     LD_RUN(TestHandleInterruptEnqueuesEvent);
     LD_RUN(TestProcessEventsEmitsRxDone);
@@ -141,5 +173,7 @@ int main() {
     LD_RUN(TestIrqOverflowDetected);
     LD_RUN(TestRandomByteReadsWidebandRssi);
     LD_RUN(TestTxWatchdogTimeout);
+    LD_RUN(TestPollingModeReadsIrqFlagsWithoutInterrupt);
+    LD_RUN(TestNonPollingModeIgnoresIrqFlagsWithoutInterrupt);
     return loradriver::test::report();
 }

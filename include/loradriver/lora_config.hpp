@@ -35,6 +35,9 @@ struct LoRaConfig {
     bool          auto_reset        = true;   // Driver pulses pin_reset before init
     std::uint16_t reset_low_ms      = 2;      // RST low duration
     std::uint16_t reset_settle_ms   = 10;     // Wait after RST high before SPI
+    bool          polling_mode      = false;  // process_events() reads RegIrqFlags
+                                              // every call regardless of ring buffer.
+                                              // Use when no DIO0 ISR is attached.
 
     // Chip + pinout
     ChipModel     chip              = ChipModel::SX1276;
