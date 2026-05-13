@@ -331,19 +331,93 @@ int SX127xDriver::read_packet(std::uint8_t* buf, std::size_t max_len) noexcept {
 }
 
 LoRaError SX127xDriver::start_cad() noexcept {
-    return LoRaError::InvalidState;
+    if (!initialized_) return LoRaError::NotInitialized;
+    LoRaError e = spi_.write_register(reg::kDioMapping1, dio::kDio0CadDone);
+    if (e != LoRaError::OK) return e;
+    return set_op_mode(opmode::kLoRaCad);
 }
 
 std::int16_t SX127xDriver::current_rssi() const noexcept {
-    return 0;
+    if (!initialized_) return 0;
+    std::uint8_t raw = 0;
+    if (spi_.read_register(reg::kRssiValue, raw) != LoRaError::OK) return 0;
+    return static_cast<std::int16_t>(rssi_offset() + static_cast<int>(raw));
 }
 
 std::uint8_t SX127xDriver::random_byte() noexcept {
-    return 0;
+    std::uint8_t v = 0;
+    (void)spi_.read_register(reg::kRssiWideband, v);
+    return v;
 }
 
-void SX127xDriver::process_events() noexcept {}
+void SX127xDriver::handle_interrupt() noexcept {
+    const std::uint8_t next = static_cast<std::uint8_t>((irq_head_ + 1u) % kIrqQueueSize);
+    if (next == irq_tail_) {
+        ++stats_.irq_overflows;
+        return;
+    }
+    irq_queue_[irq_head_] = 1u;  // marker; actual flags read in process_events
+    irq_head_ = next;
+}
 
-void SX127xDriver::handle_interrupt() noexcept {}
+void SX127xDriver::process_events() noexcept {
+    // Watchdog TX
+    if (tx_in_progress_ && now_ms() >= tx_deadline_ms_) {
+        tx_in_progress_ = false;
+        ++stats_.tx_timeout;
+        (void)set_op_mode(opmode::kLoRaStandby);
+        emit(RadioEvent::TxTimeout, 0);
+    }
+
+    // Drain IRQ queue (max kIrqQueueSize iterations)
+    std::uint8_t iters = 0;
+    while (irq_tail_ != irq_head_ && iters < kIrqQueueSize) {
+        irq_tail_ = static_cast<std::uint8_t>((irq_tail_ + 1u) % kIrqQueueSize);
+        ++iters;
+
+        std::uint8_t flags = 0;
+        if (spi_.read_register(reg::kIrqFlags, flags) != LoRaError::OK) continue;
+
+        // Clear flags (write 1 to clear)
+        (void)spi_.write_register(reg::kIrqFlags, irq::kClearAll);
+        ++stats_.irq_events_processed;
+
+        if (flags & irq::kPayloadCrcError) {
+            ++stats_.rx_crc_errors;
+            emit(RadioEvent::RxCrcError, flags);
+        } else if (flags & irq::kRxDone) {
+            // Snapshot metrics
+            std::uint8_t rssi_raw = 0, snr_raw = 0;
+            (void)spi_.read_register(reg::kPktRssiValue, rssi_raw);
+            (void)spi_.read_register(reg::kPktSnrValue, snr_raw);
+            stats_.last_rssi_dbm = static_cast<std::int16_t>(rssi_offset() + rssi_raw);
+            stats_.last_snr_q4   = static_cast<std::int16_t>(static_cast<std::int8_t>(snr_raw));
+            ++stats_.rx_done;
+            emit(RadioEvent::RxDone, flags);
+        }
+
+        if (flags & irq::kTxDone) {
+            tx_in_progress_ = false;
+            ++stats_.tx_done;
+            emit(RadioEvent::TxDone, flags);
+        }
+        if (flags & irq::kRxTimeout) {
+            ++stats_.rx_timeout;
+            emit(RadioEvent::RxTimeout, flags);
+        }
+        if (flags & irq::kCadDone) {
+            const int detected = (flags & irq::kCadDetected) ? 1 : 0;
+            emit(RadioEvent::CadDone, detected);
+        }
+        if (flags & irq::kValidHeader) {
+            emit(RadioEvent::ValidHeader, flags);
+        }
+    }
+
+    // Update backlog stat
+    const std::uint8_t backlog = static_cast<std::uint8_t>(
+        (irq_head_ + kIrqQueueSize - irq_tail_) % kIrqQueueSize);
+    if (backlog > stats_.max_irq_backlog) stats_.max_irq_backlog = backlog;
+}
 
 }  // namespace loradriver::chips
