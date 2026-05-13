@@ -32,6 +32,8 @@ struct LoRaConfig {
     bool          agc_auto          = true;
     bool          lna_boost_rx      = false;
     bool          isr_snapshot      = false;
+    bool          tcxo_enabled      = false;  // external 32 MHz TCXO clock
+                                              // (TTGO LoRa32, Heltec WiFi LoRa).
     bool          auto_reset        = true;   // Driver pulses pin_reset before init
     std::uint16_t reset_low_ms      = 2;      // RST low duration
     std::uint16_t reset_settle_ms   = 10;     // Wait after RST high before SPI

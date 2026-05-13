@@ -196,6 +196,14 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
     if ((e = spi_.read_register(reg::kVersion, chip_version_)) != LoRaError::OK) return e;
     if (chip_version_ != kVersionExpected) return LoRaError::UnsupportedChip;
 
+    // TCXO config: if enabled, set TcxoInputOn (bit 4). Datasheet §6.6.
+    {
+        std::uint8_t tcxo = 0;
+        if ((e = spi_.read_register(reg::kTcxo, tcxo)) != LoRaError::OK) return e;
+        if (cfg.tcxo_enabled) tcxo |= 0x10u; else tcxo &= ~0x10u;
+        if ((e = spi_.write_register(reg::kTcxo, tcxo)) != LoRaError::OK) return e;
+    }
+
     // FSK sleep → image calibration → LoRa sleep
     if ((e = set_op_mode(opmode::kFskSleep))  != LoRaError::OK) return e;
     if ((e = run_rx_image_calibration()) != LoRaError::OK) return e;

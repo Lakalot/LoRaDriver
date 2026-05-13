@@ -183,6 +183,27 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestTcxoEnabledSetsTcxoInputBit() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.tcxo_enabled = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kTcxo) & 0x10u),
+                 std::uint8_t{0x10});
+    return true;
+}
+
+bool TestTcxoDisabledLeavesXtalDefault() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.tcxo_enabled = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kTcxo) & 0x10u, std::uint8_t{0});
+    return true;
+}
+
 bool TestInvertIqWritesBothRegisters() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -318,6 +339,8 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestTcxoEnabledSetsTcxoInputBit);
+    LD_RUN(TestTcxoDisabledLeavesXtalDefault);
     LD_RUN(TestInvertIqWritesBothRegisters);
     LD_RUN(TestInvertIqDisabledKeepsDefaults);
     LD_RUN(TestBeginCalibratesRxImage);

@@ -46,6 +46,7 @@ constexpr std::uint8_t kImageCal           = 0x3B;  // FSK mode access
 constexpr std::uint8_t kInvertIq2          = kImageCal;  // LoRa mode alias
 constexpr std::uint8_t kDioMapping1        = 0x40;
 constexpr std::uint8_t kVersion            = 0x42;
+constexpr std::uint8_t kTcxo               = 0x4B;
 constexpr std::uint8_t kPaDac              = 0x4D;
 
 }  // namespace loradriver::chips::sx127x::reg
