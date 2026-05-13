@@ -157,6 +157,44 @@ bool TestBeginRejectsSpiFailure() {
     return true;
 }
 
+// Fake that drops every write to RegOpMode (chip is dead but bus says OK).
+class DeadOpModeFakeSpi : public FakeSpiDevice {
+public:
+    [[nodiscard]] LoRaError transfer(std::uint8_t addr,
+                                     const std::uint8_t* tx,
+                                     std::uint8_t* rx,
+                                     std::size_t len) noexcept override {
+        const bool is_write = (addr & 0x80u) != 0u;
+        const std::uint8_t r = addr & 0x7Fu;
+        if (is_write && r == 0x01 /*OpMode*/) {
+            // Silently swallow the write, then let read see the old value.
+            return LoRaError::OK;
+        }
+        return FakeSpiDevice::transfer(addr, tx, rx, len);
+    }
+};
+
+bool TestBeginDetectsDeadOpModeRegister() {
+    DeadOpModeFakeSpi spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::SpiVerifyMismatch);
+    return true;
+}
+
+bool TestStandbyToTxVerifiesOpMode() {
+    FakeSpiDevice good;
+    SX127xDriver drv_ok(good);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    LD_EXPECT_EQ(drv_ok.begin(c), LoRaError::OK);
+    good.set_dead_after_writes(reg::kOpMode, 1);
+    const std::uint8_t buf[2] = {0xAA, 0x55};
+    LD_EXPECT_EQ(drv_ok.start_transmit(buf, 2, 1000), LoRaError::SpiVerifyMismatch);
+    return true;
+}
+
 bool TestBeginPulsesResetWhenAutoResetTrue() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -198,5 +236,7 @@ int main() {
     LD_RUN(TestBeginRejectsSpiFailure);
     LD_RUN(TestBeginPulsesResetWhenAutoResetTrue);
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
+    LD_RUN(TestBeginDetectsDeadOpModeRegister);
+    LD_RUN(TestStandbyToTxVerifiesOpMode);
     return loradriver::test::report();
 }

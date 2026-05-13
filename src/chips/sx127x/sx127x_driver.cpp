@@ -92,8 +92,21 @@ void SX127xDriver::emit(RadioEvent ev, int param) noexcept {
 }
 
 LoRaError SX127xDriver::set_op_mode(std::uint8_t mode) noexcept {
-    const LoRaError e = spi_.write_register(reg::kOpMode, mode);
+    LoRaError e = spi_.write_register(reg::kOpMode, mode);
     if (e != LoRaError::OK) return e;
+    // Read-back verify on critical mode transitions: TX, RX (any), CAD.
+    // Skip verify on sleep/standby pairs since the init sequence verify
+    // step already covers them.
+    const bool needs_verify = (mode == opmode::kLoRaTx ||
+                               mode == opmode::kLoRaRxCont ||
+                               mode == opmode::kLoRaRxSingle ||
+                               mode == opmode::kLoRaCad);
+    if (needs_verify) {
+        std::uint8_t readback = 0;
+        e = spi_.read_register(reg::kOpMode, readback);
+        if (e != LoRaError::OK) return e;
+        if (readback != mode) return LoRaError::SpiVerifyMismatch;
+    }
     op_mode_shadow_ = mode;
     return LoRaError::OK;
 }
