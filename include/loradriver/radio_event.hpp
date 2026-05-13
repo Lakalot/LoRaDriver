@@ -1,29 +1,20 @@
 #pragma once
 
+#include <cstdint>
+
 namespace loradriver {
 
-enum class RadioEvent {
-  kNone = 0,
-  kInitPhaseStart,
-  kInitValidate,
-  kConfigValidated,
-  kChipDetected,
-  kInitBindAdapters,
-  kInitHardwareBringUp,
-  kInitialized,
-  kTxPreparing,
-  kTxInProgress,
-  kTxCompleted,
-  kTxFailed,
-  kRxListening,
-  kRxInProgress,
-  kRxDone,
-  kSleep,
-  kStandby,
-  kTimeout,
-  kRecoveryCompleted,
-  kError,
-  kIrqOverflow
+enum class RadioEvent : std::uint8_t {
+    None = 0,
+    TxDone,
+    TxTimeout,
+    RxDone,
+    RxTimeout,
+    RxCrcError,
+    CadDone,
+    CadDetected,
+    ValidHeader,
+    IrqOverflow,
 };
 
 }  // namespace loradriver

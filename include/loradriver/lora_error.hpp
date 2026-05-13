@@ -1,30 +1,26 @@
 #pragma once
 
+#include <cstdint>
+
 namespace loradriver {
 
-enum class LoRaError {
-  kOk = 0,
-  kInvalidConfig,
-  kUnsupportedProfile,
-  kHardwareInitFailure,
-  kTransitionGuardFailure,
-  kTimeoutRecovered,
-  kTimeoutRecoveryFailure,
-  kAlreadyInitialized,
-  kNotInitialized,
-  kNotImplemented,
-  kMissingRecoveryEvidence,
-  kNonRegressionFailed,
-  kGateFailed,
-  kWaiverExpired,
-  kUnknownGateId,
-  kArtifactRegistrationFailed,
-  kInvalidVersion,
-  kTraceIntegrityBroken,
-  kChangelogValidationFailed,
-  kArtifactNotFound,
-  kLinkFailed,
-  kRegistryFull
+enum class LoRaError : std::uint8_t {
+    OK = 0,
+    InvalidConfig,
+    UnsupportedChip,
+    SpiFailure,
+    SpiVerifyMismatch,
+    InvalidState,
+    TxTimeout,
+    TxBufferTooLarge,
+    RxTimeout,
+    RxCrcError,
+    AlreadyInitialized,
+    NotInitialized,
+    QueueFull,
+    NullArgument,
 };
+
+const char* to_string(LoRaError e) noexcept;
 
 }  // namespace loradriver
