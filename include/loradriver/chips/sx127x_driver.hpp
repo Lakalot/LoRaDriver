@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
 #include "loradriver/hal/spi_device.hpp"
 #include "loradriver/lora_config.hpp"
@@ -12,6 +13,12 @@ namespace loradriver::chips {
 
 class SX127xDriver final : public IRadioDriver {
 public:
+    /// Host-test injection point: function called by begin() in lieu of GPIO.
+    /// On Arduino targets this stays nullptr and the driver pulses pin_reset
+    /// directly via digitalWrite.
+    using ResetHook = std::function<void()>;
+    static inline ResetHook s_reset_hook_{};
+
     explicit SX127xDriver(hal::ISpiDevice& spi) noexcept : spi_(spi) {}
 
     [[nodiscard]] LoRaError begin(const LoRaConfig& cfg) noexcept override;

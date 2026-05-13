@@ -157,6 +157,32 @@ bool TestBeginRejectsSpiFailure() {
     return true;
 }
 
+bool TestBeginPulsesResetWhenAutoResetTrue() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = true;
+    int reset_calls = 0;
+    SX127xDriver::s_reset_hook_ = [&reset_calls]() { ++reset_calls; };
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    SX127xDriver::s_reset_hook_ = nullptr;
+    LD_EXPECT_EQ(reset_calls, 1);
+    return true;
+}
+
+bool TestBeginSkipsResetWhenAutoResetFalse() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.auto_reset = false;
+    int reset_calls = 0;
+    SX127xDriver::s_reset_hook_ = [&reset_calls]() { ++reset_calls; };
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    SX127xDriver::s_reset_hook_ = nullptr;
+    LD_EXPECT_EQ(reset_calls, 0);
+    return true;
+}
+
 int main() {
     LD_RUN(TestBeginRejectsInvalidConfig);
     LD_RUN(TestBeginRejectsMissingChip);
@@ -170,5 +196,7 @@ int main() {
     LD_RUN(TestBeginAppliesOcp100mA);
     LD_RUN(TestBeginClearsIrqFlags);
     LD_RUN(TestBeginRejectsSpiFailure);
+    LD_RUN(TestBeginPulsesResetWhenAutoResetTrue);
+    LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     return loradriver::test::report();
 }

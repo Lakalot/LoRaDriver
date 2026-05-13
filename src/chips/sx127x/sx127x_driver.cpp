@@ -32,6 +32,23 @@ std::uint8_t ocp_trim(std::uint8_t ma) noexcept {
     return 27u;  // = 240 mA cap
 }
 
+void pulse_reset(const LoRaConfig& cfg) noexcept {
+    if (SX127xDriver::s_reset_hook_) {
+        SX127xDriver::s_reset_hook_();
+        return;
+    }
+#ifdef ARDUINO
+    if (cfg.pin_reset < 0) return;
+    pinMode(cfg.pin_reset, OUTPUT);
+    digitalWrite(cfg.pin_reset, LOW);
+    delay(cfg.reset_low_ms);
+    digitalWrite(cfg.pin_reset, HIGH);
+    delay(cfg.reset_settle_ms);
+#else
+    (void)cfg;  // host build with no hook: skip
+#endif
+}
+
 }  // namespace
 
 std::uint32_t SX127xDriver::now_ms() noexcept {
@@ -221,6 +238,10 @@ LoRaError SX127xDriver::begin(const LoRaConfig& cfg) noexcept {
 
     LoRaError e = cfg.validate();
     if (e != LoRaError::OK) return e;
+
+    if (cfg.auto_reset) {
+        pulse_reset(cfg);
+    }
 
     if ((e = spi_.begin()) != LoRaError::OK) return e;
 
