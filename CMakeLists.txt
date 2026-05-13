@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(LoRaDriver VERSION 1.0.0 LANGUAGES CXX)
+project(LoRaDriver VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,7 @@ target_include_directories(loradriver
 target_sources(loradriver PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_error.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_config.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/api/version.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/hal/spi_device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chips/sx127x/sx127x_driver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_transceiver.cpp
