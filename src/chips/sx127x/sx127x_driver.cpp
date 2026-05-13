@@ -465,4 +465,13 @@ void SX127xDriver::process_events() noexcept {
     if (backlog > stats_.max_irq_backlog) stats_.max_irq_backlog = backlog;
 }
 
+LoRaError SX127xDriver::check_alive() noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    std::uint8_t v = 0;
+    const LoRaError e = spi_.read_register(reg::kVersion, v);
+    if (e != LoRaError::OK) return e;
+    if (v != kVersionExpected) return LoRaError::UnsupportedChip;
+    return LoRaError::OK;
+}
+
 }  // namespace loradriver::chips

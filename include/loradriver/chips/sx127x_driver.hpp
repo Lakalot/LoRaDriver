@@ -24,6 +24,7 @@ public:
     [[nodiscard]] LoRaError begin(const LoRaConfig& cfg) noexcept override;
     void end() noexcept override;
     [[nodiscard]] std::uint8_t chip_version() const noexcept override { return chip_version_; }
+    [[nodiscard]] LoRaError check_alive() noexcept override;
 
     [[nodiscard]] LoRaError set_sleep() noexcept override;
     [[nodiscard]] LoRaError set_standby() noexcept override;

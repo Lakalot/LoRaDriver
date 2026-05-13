@@ -132,6 +132,21 @@ bool TestTxWatchdogTimeout() {
     return true;
 }
 
+bool TestHeartbeatDetectsDeadChip() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    spi.set_chip_version(0xFF);
+    LD_EXPECT_EQ(drv.check_alive(), LoRaError::UnsupportedChip);
+    return true;
+}
+
+bool TestHeartbeatPassesOnLiveChip() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.check_alive(), LoRaError::OK);
+    return true;
+}
+
 bool TestPollingModeReadsIrqFlagsWithoutInterrupt() {
     FakeSpiDevice spi; SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
@@ -175,5 +190,7 @@ int main() {
     LD_RUN(TestTxWatchdogTimeout);
     LD_RUN(TestPollingModeReadsIrqFlagsWithoutInterrupt);
     LD_RUN(TestNonPollingModeIgnoresIrqFlagsWithoutInterrupt);
+    LD_RUN(TestHeartbeatDetectsDeadChip);
+    LD_RUN(TestHeartbeatPassesOnLiveChip);
     return loradriver::test::report();
 }

@@ -21,6 +21,11 @@ public:
     virtual void end() noexcept = 0;
     [[nodiscard]] virtual std::uint8_t chip_version() const noexcept = 0;
 
+    /// Heartbeat: re-read chip version register. Cheap (~5us at 8MHz SPI).
+    /// Returns OK if chip still responds with expected signature, otherwise
+    /// UnsupportedChip (chip gone / brown-out) or SpiFailure (bus error).
+    [[nodiscard]] virtual LoRaError check_alive() noexcept = 0;
+
     [[nodiscard]] virtual LoRaError set_sleep() noexcept = 0;
     [[nodiscard]] virtual LoRaError set_standby() noexcept = 0;
 

@@ -61,6 +61,12 @@ public:
     [[nodiscard]] RadioStats   stats() const noexcept { return driver_.get_stats(); }
     [[nodiscard]] std::uint8_t chip_version() const noexcept { return driver_.chip_version(); }
 
+    /// Heartbeat: cheap RegVersion read. Returns OK if chip still responds.
+    [[nodiscard]] LoRaError check_alive() noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.check_alive();
+    }
+
     /// Forwarded to the underlying driver (use from ISR shim).
     void handle_interrupt() noexcept { driver_.handle_interrupt(); }
 
