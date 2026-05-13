@@ -19,6 +19,7 @@ target_include_directories(loradriver
 target_sources(loradriver PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_error.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_config.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/hal/spi_device.cpp
 )
 
 enable_testing()
