@@ -71,6 +71,7 @@ private:
     bool         initialized_  = false;
     bool         tx_in_progress_ = false;
     std::uint32_t tx_deadline_ms_ = 0;
+    std::uint32_t rx_silence_deadline_ms_ = 0;  // 0 = disarmed
     std::uint8_t  op_mode_shadow_ = 0;
 
     // IRQ ring buffer (filled by handle_interrupt, drained by process_events)

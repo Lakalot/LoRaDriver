@@ -345,7 +345,13 @@ LoRaError SX127xDriver::start_receive(bool continuous) noexcept {
     if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 0)) != LoRaError::OK) return e;
     if ((e = spi_.write_register(reg::kFifoAddrPtr, 0)) != LoRaError::OK) return e;
     if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0RxDone)) != LoRaError::OK) return e;
-    return set_op_mode(continuous ? opmode::kLoRaRxCont : opmode::kLoRaRxSingle);
+    e = set_op_mode(continuous ? opmode::kLoRaRxCont : opmode::kLoRaRxSingle);
+    if (e == LoRaError::OK && continuous && cfg_.rx_silence_timeout_ms > 0) {
+        rx_silence_deadline_ms_ = now_ms() + cfg_.rx_silence_timeout_ms;
+    } else {
+        rx_silence_deadline_ms_ = 0;
+    }
+    return e;
 }
 
 int SX127xDriver::read_packet(std::uint8_t* buf, std::size_t max_len) noexcept {
@@ -403,6 +409,14 @@ void SX127xDriver::process_events() noexcept {
         emit(RadioEvent::TxTimeout, 0);
     }
 
+    // RX silence watchdog
+    if (rx_silence_deadline_ms_ != 0u && now_ms() >= rx_silence_deadline_ms_) {
+        rx_silence_deadline_ms_ = 0u;  // disarm to avoid storm
+        ++stats_.rx_timeout;
+        emit(RadioEvent::RxTimeout, 0);
+        (void)set_op_mode(opmode::kLoRaStandby);
+    }
+
     // Drain IRQ queue (max kIrqQueueSize iterations).
     // In polling_mode, synthesize a queue entry so the loop runs once per
     // process_events() call even without handle_interrupt being invoked.
@@ -438,6 +452,9 @@ void SX127xDriver::process_events() noexcept {
             stats_.last_rssi_dbm = static_cast<std::int16_t>(rssi_offset() + rssi_raw);
             stats_.last_snr_q4   = static_cast<std::int16_t>(static_cast<std::int8_t>(snr_raw));
             ++stats_.rx_done;
+            if (cfg_.rx_silence_timeout_ms > 0u) {
+                rx_silence_deadline_ms_ = now_ms() + cfg_.rx_silence_timeout_ms;
+            }
             emit(RadioEvent::RxDone, flags);
         }
 

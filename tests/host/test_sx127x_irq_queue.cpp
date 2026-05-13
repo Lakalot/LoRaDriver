@@ -6,6 +6,14 @@
 
 #include "../../src/chips/sx127x/sx127x_registers.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+static void sleep_ms(int ms) { Sleep(ms); }
+#else
+#include <unistd.h>
+static void sleep_ms(int ms) { usleep(ms * 1000); }
+#endif
+
 using loradriver::ChipModel;
 using loradriver::LoRaConfig;
 using loradriver::LoRaError;
@@ -132,6 +140,37 @@ bool TestTxWatchdogTimeout() {
     return true;
 }
 
+bool TestRxSilenceWatchdogFiresWhenIdle() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.rx_silence_timeout_ms = 0;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(drv.start_receive(true), LoRaError::OK);
+    int rx_timeouts = 0;
+    drv.set_event_callback([&rx_timeouts](RadioEvent ev, int) {
+        if (ev == RadioEvent::RxTimeout) ++rx_timeouts;
+    });
+    for (int i = 0; i < 100; ++i) drv.process_events();
+    LD_EXPECT_EQ(rx_timeouts, 0);
+    return true;
+}
+
+bool TestRxSilenceWatchdogTriggersAfterTimeout() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.rx_silence_timeout_ms = 1;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(drv.start_receive(true), LoRaError::OK);
+    int rx_timeouts = 0;
+    drv.set_event_callback([&rx_timeouts](RadioEvent ev, int) {
+        if (ev == RadioEvent::RxTimeout) ++rx_timeouts;
+    });
+    sleep_ms(5);
+    drv.process_events();
+    LD_EXPECT(rx_timeouts >= 1);
+    return true;
+}
+
 bool TestHeartbeatDetectsDeadChip() {
     FakeSpiDevice spi; SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
@@ -192,5 +231,7 @@ int main() {
     LD_RUN(TestNonPollingModeIgnoresIrqFlagsWithoutInterrupt);
     LD_RUN(TestHeartbeatDetectsDeadChip);
     LD_RUN(TestHeartbeatPassesOnLiveChip);
+    LD_RUN(TestRxSilenceWatchdogFiresWhenIdle);
+    LD_RUN(TestRxSilenceWatchdogTriggersAfterTimeout);
     return loradriver::test::report();
 }

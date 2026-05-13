@@ -38,6 +38,10 @@ struct LoRaConfig {
     bool          polling_mode      = false;  // process_events() reads RegIrqFlags
                                               // every call regardless of ring buffer.
                                               // Use when no DIO0 ISR is attached.
+    std::uint32_t rx_silence_timeout_ms = 0;  // 0 = disabled. >0 = emit
+                                              // RxTimeout if no RxDone seen
+                                              // in this window during
+                                              // RX_CONTINUOUS.
 
     // Chip + pinout
     ChipModel     chip              = ChipModel::SX1276;
