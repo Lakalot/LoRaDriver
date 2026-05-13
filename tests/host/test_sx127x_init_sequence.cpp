@@ -183,6 +183,31 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestBeginSx1278At433MHzWritesCorrectFrf() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.chip = ChipModel::SX1278;
+    c.frequency_hz = 433'920'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+
+    const std::uint64_t frf = (static_cast<std::uint64_t>(433'920'000u) << 19) / 32'000'000ull;
+    LD_EXPECT_EQ(spi.reg(reg::kFrMsb), static_cast<std::uint8_t>((frf >> 16) & 0xFF));
+    LD_EXPECT_EQ(spi.reg(reg::kFrMid), static_cast<std::uint8_t>((frf >> 8) & 0xFF));
+    LD_EXPECT_EQ(spi.reg(reg::kFrLsb), static_cast<std::uint8_t>(frf & 0xFF));
+    return true;
+}
+
+bool TestBeginSx1278RejectsHighBandFrequency() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.chip = ChipModel::SX1278;
+    c.frequency_hz = 868'000'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::InvalidConfig);
+    return true;
+}
+
 bool TestStandbyToTxVerifiesOpMode() {
     FakeSpiDevice good;
     SX127xDriver drv_ok(good);
@@ -238,5 +263,7 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
+    LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
     return loradriver::test::report();
 }
