@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.2.0 — 2026-05-13
+
+Production-finishing release. Closes the residual gaps after v1.1.0:
+latent bugs, library plumbing, hardware-specific deep work.
+
+### Fixed (P0)
+
+- `SX127xDriver::end()` now resets all runtime state, making
+  `begin()/end()/begin()` cycles safe.
+- `RadioPumpTask::stop()` uses the correct non-ISR notify API
+  (`xTaskNotifyGive`) and exposes a configurable `stop_timeout_ms`
+  (default 1000 ms, up from 600).
+- Regression test pins `set_ocp_enabled()` trim-preservation contract.
+
+### Added (P0)
+
+- Errata 2.3 scaffold: `RegIfFreq1/2` and `RegDetectOptimize` bit 7
+  written conditionally on BW (full table in P2.1).
+- `LoRaConfig::skip_image_calibration` bypasses the 1 ms FSK-mode
+  calibration when re-initing on an already-calibrated chip.
+
+### Added (P1)
+
+- clang-format applied to the entire codebase; lint gate now meaningful.
+- Doxygen `@brief` annotations on every public type/field/method.
+- `LORADRIVER_NO_EXCEPTIONS_MSVC=ON` CMake option to validate the
+  noexcept contract under MSVC `/EHs-c- /GR-` (CI job added).
+- Branch `finishing/v1.2` pushed to GitHub for CI validation.
+
+### Added (P2)
+
+- Full errata 2.3 IfFreq table per BW: 7.8 kHz (0x48), 10.4–41.7 kHz
+  (0x44), 62.5–250 kHz (0x40), 500 kHz (0x00 + DetectOptimize bit 7).
+- Runtime RX image recalibration triggered when `set_frequency()`
+  delta exceeds 5%. Uses 64-bit arithmetic to avoid uint32 overflow on
+  large jumps (e.g. 868→433 MHz).
+- OCP auto-trim on high-power TX (`dBm > 17` + PA_BOOST sets OCP ≥
+  130 mA per datasheet §3.4.1; restores user value when stepping down).
+
 ## 1.1.0 — 2026-05-13
 
 Hardening release. See the 29-point gap list resolved in

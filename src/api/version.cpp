@@ -12,7 +12,7 @@ std::uint8_t version_patch() noexcept {
     return kVersionPatch;
 }
 const char* version_string() noexcept {
-    return "1.1.0";
+    return "1.2.0";
 }
 
 } // namespace loradriver

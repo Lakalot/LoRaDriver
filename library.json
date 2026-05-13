@@ -1,6 +1,6 @@
 {
     "name": "LoRaDriver",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Clean C++17 LoRa driver — SX1276/SX1278. DI architecture, ESP32 DMA SPI, FreeRTOS pump task, Semtech errata. 50+ host tests.",
     "keywords": [
         "lora",
