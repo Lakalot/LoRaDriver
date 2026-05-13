@@ -132,6 +132,22 @@ bool TestSetOcpEnabledTogglesBit5() {
     return true;
 }
 
+bool TestSetOcpEnabledPreservesTrim() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.ocp_ma = 100;  // trim = (100-45)/5 = 11 = 0x0B
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    const std::uint8_t trim_initial = spi.reg(reg::kOcp) & 0x1Fu;
+    LD_EXPECT_EQ(trim_initial, std::uint8_t{0x0B});
+
+    LD_EXPECT_EQ(drv.set_ocp_enabled(false), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_ocp_enabled(true),  LoRaError::OK);
+
+    // After enable/disable cycle the trim bits must be unchanged.
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x1Fu), trim_initial);
+    return true;
+}
+
 int main() {
     LD_RUN(TestSetFrequencyChangesFrfRegisters);
     LD_RUN(TestSetSpreadingFactorRejectsOutOfRange);
@@ -144,5 +160,6 @@ int main() {
     LD_RUN(TestSetLnaGainZeroEnablesAgc);
     LD_RUN(TestSetLnaGainSpecificValueDisablesAgc);
     LD_RUN(TestSetOcpEnabledTogglesBit5);
+    LD_RUN(TestSetOcpEnabledPreservesTrim);
     return loradriver::test::report();
 }
