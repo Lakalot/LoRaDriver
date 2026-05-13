@@ -42,7 +42,13 @@ LoRaError LoRaTransceiver::begin(const LoRaConfig& cfg) noexcept {
 
 void LoRaTransceiver::end() noexcept {
     if (state_ == State::Uninit) return;
+    // Detach driver callback first so any in-flight IRQ can't reach
+    // user code through a dead lambda capture.
+    driver_.set_event_callback(nullptr);
     driver_.end();
+    packet_cb_  = {};
+    event_cb_   = {};
+    tx_done_cb_ = {};
     state_ = State::Uninit;
 }
 
