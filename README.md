@@ -1,34 +1,46 @@
 # LoRaDriver
 
-LoRaDriver is a deterministic, architecture-first LoRa radio driver baseline for ESP32 (Arduino framework) with host-side CMake/CTest validation.
+Clean C++17 driver for Semtech SX1276 and SX1278 LoRa transceivers.
 
-## V1 Scope
+## Highlights
 
-- Supported chips: SX1276, SX1278
-- Supported bands: 433 MHz, 868 MHz
-- Supported IRQ routing: DIO0 only, DIO0 + DIO1
-- Protocol scope: LoRa P2P only
-- Out of scope in V1: LoRaWAN and SX126x runtime support (stub-only)
+- **Layered DI**: `ISpiDevice` (HAL) → `SX127xDriver` (chip) → `LoRaTransceiver` (FSM) → optional `RadioPumpTask` (ESP32 FreeRTOS).
+- No singletons, no heap after `begin()`, no exceptions, `[[nodiscard]] noexcept` everywhere on the radio path.
+- Semtech errata 2.1 (BW 500 kHz high-band) applied. LDRO auto, OCP, PA_BOOST/RFO + PaDac high-power, LNA boost.
+- ISR-safe ring buffer + watchdog TX timeout.
+- DMA-capable SPI on ESP32 via `transferBytes`.
+- ~50 host tests + 1 embedded smoke.
 
-## Build and Test
+## Quick start (Arduino + ESP32)
 
-### Target lane (PlatformIO)
+```cpp
+#include <SPI.h>
+#include "loradriver/chips/sx127x_driver.hpp"
+#include "loradriver/hal/esp32_spi_device.hpp"
+#include "loradriver/lora_transceiver.hpp"
 
-```bash
-python -m platformio run -e esp32dev
-python -m platformio test -e esp32dev --without-uploading --without-testing
+using namespace loradriver;
+
+hal::Esp32SpiDevice spi(SPI, /*cs=*/5);
+chips::SX127xDriver drv(spi);
+LoRaTransceiver     trx(drv);
+
+void setup() {
+    LoRaConfig cfg;
+    cfg.chip = ChipModel::SX1276;
+    cfg.frequency_hz = 868'000'000u;
+    cfg.pin_ss = 5; cfg.pin_reset = 14; cfg.pin_dio0 = 26;
+    trx.begin(cfg);
+    trx.start_receive(true);
+}
 ```
 
-To execute embedded Unity tests with attached hardware:
+See `examples/` for sender, receiver, and ESP32-with-pump-task templates.
+
+## Build host tests
 
 ```bash
-python -m platformio test -e esp32dev --test-port <serial-port>
-```
-
-### Host lane (CMake/CTest)
-
-```bash
-cmake --preset default
-cmake --build --preset default
-ctest --preset default
+cmake -S . -B build/host
+cmake --build build/host
+ctest --test-dir build/host --output-on-failure
 ```
