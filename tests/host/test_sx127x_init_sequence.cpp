@@ -341,6 +341,21 @@ bool TestBeginSkipsResetWhenAutoResetFalse() {
     return true;
 }
 
+bool TestSkipImageCalibrationOmitsImageCalWrite() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.skip_image_calibration = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    // No write with bit 6 set on RegImageCal should appear in the log.
+    for (const auto& w : spi.writes()) {
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool TestErrata23WritesIfFreqRegisters() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -408,6 +423,7 @@ int main() {
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
     LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
+    LD_RUN(TestSkipImageCalibrationOmitsImageCalWrite);
     LD_RUN(TestErrata23WritesIfFreqRegisters);
     LD_RUN(TestBeginEndBeginCycleSucceeds);
     LD_RUN(TestBeginEndBeginAppliesNewConfig);

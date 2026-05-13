@@ -240,7 +240,9 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
 
     // FSK sleep → image calibration → LoRa sleep
     if ((e = set_op_mode(opmode::kFskSleep))  != LoRaError::OK) return e;
-    if ((e = run_rx_image_calibration()) != LoRaError::OK) return e;
+    if (!cfg.skip_image_calibration) {
+        if ((e = run_rx_image_calibration()) != LoRaError::OK) return e;
+    }
     if ((e = set_op_mode(opmode::kLoRaSleep)) != LoRaError::OK) return e;
 
     // Verify LoRa bit (read-back of OpMode)
