@@ -183,6 +183,18 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestSymbolTimeoutUsesConfigValueDirectly() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.symbol_timeout = 0x140;  // 320, fits in 10 bits
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kSymbTimeoutLsb), std::uint8_t{0x40});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig2) & 0x03u),
+                 std::uint8_t{0x01});
+    return true;
+}
+
 bool TestInitSetsTxBaseTo0AndRxBaseTo128() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -272,6 +284,7 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestSymbolTimeoutUsesConfigValueDirectly);
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
     LD_RUN(TestBeginSx1278RejectsHighBandFrequency);

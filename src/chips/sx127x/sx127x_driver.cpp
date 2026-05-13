@@ -129,16 +129,19 @@ LoRaError SX127xDriver::apply_modem_config(const LoRaConfig& cfg) noexcept {
     LoRaError e;
     if ((e = spi_.write_register(reg::kModemConfig1, mc1)) != LoRaError::OK) return e;
 
-    // ModemConfig2: SF[7:4] | TxContinuous[3]=0 | CRC[2] | SymbTimeoutMsb[1:0]=11
+    // ModemConfig2: SF[7:4] | TxContinuous[3]=0 | CRC[2] | SymbTimeoutMsb[1:0]
+    const std::uint16_t symb_to = (cfg.symbol_timeout > 0x3FFu)
+        ? std::uint16_t{0x3FFu}
+        : cfg.symbol_timeout;
     const std::uint8_t mc2 = static_cast<std::uint8_t>(
         (cfg.spreading_factor << 4) |
         (cfg.crc_enabled ? 0x04u : 0x00u) |
-        0x03u);
+        ((symb_to >> 8) & 0x03u));
     if ((e = spi_.write_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
 
     // SymbTimeoutLsb
     if ((e = spi_.write_register(reg::kSymbTimeoutLsb,
-                                 static_cast<std::uint8_t>(cfg.symbol_timeout & 0xFFu))) != LoRaError::OK) return e;
+                                 static_cast<std::uint8_t>(symb_to & 0xFFu))) != LoRaError::OK) return e;
 
     // ModemConfig3: LDRO[3] | AgcAuto[2]
     const bool ldro = cfg.ldro_auto && cfg.ldro_required();
