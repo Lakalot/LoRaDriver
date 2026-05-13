@@ -7,3 +7,4 @@ endfunction()
 
 loradriver_add_host_test(test_lora_config_validate)
 loradriver_add_host_test(test_radio_stats)
+loradriver_add_host_test(test_fake_spi_device)
