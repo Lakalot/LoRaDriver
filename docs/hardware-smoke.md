@@ -2,21 +2,26 @@
 
 How to validate LoRaDriver on a real ESP32 + SX1276 / SX1278 module.
 
-## Wiring (DOIT ESP32 DevKit example)
+## Wiring (SYNC-SIGNAL-LORA reference board)
+
+The smoke test ships with the wiring used by the SYNC-SIGNAL-LORA project —
+note that MOSI is on GPIO 22 (non-default). For a generic DOIT ESP32 DevKit
+with MOSI on GPIO 23, edit the pin constants at the top of `test_main.cpp`.
 
 | ESP32 pin | Module pin |
 |-----------|------------|
 | GPIO 5    | NSS / CS   |
-| GPIO 14   | RST / NRESET |
-| GPIO 26   | DIO0       |
+| GPIO 4    | RST / NRESET |
+| GPIO 17   | DIO0       |
 | GPIO 18   | SCK        |
 | GPIO 19   | MISO       |
-| GPIO 23   | MOSI       |
+| GPIO 22   | MOSI       |
 | 3V3       | VCC        |
 | GND       | GND        |
 
-If your pinout differs, edit `tests/embedded/smoke/test_main.cpp` constants
-`kPinSS`, `kPinReset`, `kPinDio0` before flashing.
+If your pinout differs, edit `tests/embedded/test_smoke/test_main.cpp`
+constants `kPinSck`, `kPinMiso`, `kPinMosi`, `kPinSS`, `kPinReset`,
+`kPinDio0` before flashing.
 
 ## Running
 

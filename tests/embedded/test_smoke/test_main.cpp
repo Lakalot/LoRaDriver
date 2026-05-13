@@ -11,9 +11,15 @@ using namespace loradriver;
 
 namespace {
 
+// Pin wiring matches the SYNC-SIGNAL-LORA project (the consumer that drives
+// this smoke test). If your board differs, override these constants and the
+// SPI.begin(sck, miso, mosi) call below.
+constexpr std::int8_t kPinSck   = 18;
+constexpr std::int8_t kPinMiso  = 19;
+constexpr std::int8_t kPinMosi  = 22;  // non-default — MOSI on GPIO22, not 23
 constexpr std::int8_t kPinSS    = 5;
-constexpr std::int8_t kPinReset = 14;
-constexpr std::int8_t kPinDio0  = 26;
+constexpr std::int8_t kPinReset = 4;
+constexpr std::int8_t kPinDio0  = 17;
 
 hal::Esp32SpiDevice g_spi(SPI, kPinSS);
 chips::SX127xDriver g_drv(g_spi);
@@ -38,7 +44,8 @@ void setUp() {}
 void tearDown() {}
 
 void test_chip_version_is_0x12() {
-    SPI.begin();
+    // SPI.begin(sck, miso, mosi) — explicit pins because MOSI is non-default.
+    SPI.begin(kPinSck, kPinMiso, kPinMosi);
     TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
                       static_cast<int>(g_trx.begin(make_cfg())));
     TEST_ASSERT_EQUAL_HEX8(0x12, g_trx.chip_version());
