@@ -82,13 +82,10 @@ std::int16_t SX127xDriver::rssi_offset() const noexcept {
 }
 
 void SX127xDriver::emit(RadioEvent ev, int param) noexcept {
-    if (event_cb_) {
-#if __cpp_exceptions
-        try { event_cb_(ev, param); } catch (...) { ++stats_.callback_exceptions; }
-#else
-        event_cb_(ev, param);
-#endif
-    }
+    // Callbacks must be noexcept (documented in docs/api.md). The driver
+    // is built with -fno-exceptions on Clang/GCC; a throwing callback
+    // is undefined behaviour.
+    if (event_cb_) event_cb_(ev, param);
 }
 
 LoRaError SX127xDriver::set_op_mode(std::uint8_t mode) noexcept {
