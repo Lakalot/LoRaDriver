@@ -27,8 +27,14 @@ target_include_directories(loradriver
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+option(LORADRIVER_NO_EXCEPTIONS_MSVC "Force /EHs-c- on MSVC to validate noexcept invariants" OFF)
+
 if(NOT MSVC)
   target_compile_options(loradriver PRIVATE -fno-exceptions -fno-rtti)
+elseif(LORADRIVER_NO_EXCEPTIONS_MSVC)
+  # MSVC: clear default /EHsc then add /EHs-c- (no exceptions, no RTTI).
+  string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  target_compile_options(loradriver PRIVATE /EHs-c- /GR-)
 endif()
 
 target_sources(loradriver PRIVATE

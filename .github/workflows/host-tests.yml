@@ -44,3 +44,14 @@ jobs:
         run: sudo apt-get install -y clang-format
       - name: Run clang-format check
         run: ./tools/lint.sh
+
+  no-exceptions-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build/noex -DLORADRIVER_NO_EXCEPTIONS_MSVC=ON
+      - name: Build
+        run: cmake --build build/noex --config Debug
+      - name: Run
+        run: ctest --test-dir build/noex -C Debug --output-on-failure
