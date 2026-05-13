@@ -144,7 +144,18 @@ LoRaError SX127xDriver::apply_modem_config(const LoRaConfig& cfg) noexcept {
     const bool ldro = cfg.ldro_auto && cfg.ldro_required();
     const std::uint8_t mc3 = static_cast<std::uint8_t>(
         (ldro ? 0x08u : 0x00u) | (cfg.agc_auto ? 0x04u : 0x00u));
-    return spi_.write_register(reg::kModemConfig3, mc3);
+    if ((e = spi_.write_register(reg::kModemConfig3, mc3)) != LoRaError::OK) return e;
+
+    // SF6 requires specific DetectionOptimize and DetectionThreshold values
+    // (datasheet table 28). Other SF: defaults.
+    if (cfg.spreading_factor == 6u) {
+        if ((e = spi_.write_register(reg::kDetectionOptimize, 0x05)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kDetectionThreshold, 0x0C)) != LoRaError::OK) return e;
+    } else {
+        if ((e = spi_.write_register(reg::kDetectionOptimize, 0x03)) != LoRaError::OK) return e;
+        if ((e = spi_.write_register(reg::kDetectionThreshold, 0x0A)) != LoRaError::OK) return e;
+    }
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::apply_tx_power(std::int8_t dbm, PaOutput out) noexcept {
@@ -356,6 +367,16 @@ LoRaError SX127xDriver::set_ocp_enabled(bool enabled) noexcept {
     if (e != LoRaError::OK) return e;
     if (enabled) v |= 0x20u; else v &= ~0x20u;
     return spi_.write_register(reg::kOcp, v);
+}
+
+LoRaError SX127xDriver::start_continuous_wave() noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    LoRaError e;
+    std::uint8_t mc2 = 0;
+    if ((e = spi_.read_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
+    mc2 |= 0x08u;  // TxContinuousMode
+    if ((e = spi_.write_register(reg::kModemConfig2, mc2)) != LoRaError::OK) return e;
+    return set_op_mode(opmode::kLoRaTx);
 }
 
 // --- TX / RX / CAD / IRQ stubs — implemented in Tasks 3.5–3.7 ---

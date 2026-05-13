@@ -183,6 +183,21 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestSf6ImplicitHeaderInitOk() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.spreading_factor = 6;
+    c.implicit_header = true;
+    c.crc_enabled = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig1) & 0x01u),
+                 std::uint8_t{0x01});
+    LD_EXPECT_EQ(spi.reg(reg::kDetectionOptimize), std::uint8_t{0x05});
+    LD_EXPECT_EQ(spi.reg(reg::kDetectionThreshold), std::uint8_t{0x0C});
+    return true;
+}
+
 bool TestTcxoEnabledSetsTcxoInputBit() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -339,6 +354,7 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestSf6ImplicitHeaderInitOk);
     LD_RUN(TestTcxoEnabledSetsTcxoInputBit);
     LD_RUN(TestTcxoDisabledLeavesXtalDefault);
     LD_RUN(TestInvertIqWritesBothRegisters);

@@ -49,6 +49,9 @@ public:
     [[nodiscard]] virtual LoRaError set_lna_gain(std::uint8_t gain) noexcept = 0;
     /// Enable or disable OverCurrent Protection.
     [[nodiscard]] virtual LoRaError set_ocp_enabled(bool enabled) noexcept = 0;
+    /// Enter continuous-wave (unmodulated carrier) mode for RF certification.
+    /// Caller must call set_standby() to exit.
+    [[nodiscard]] virtual LoRaError start_continuous_wave() noexcept = 0;
 
     [[nodiscard]] virtual std::int16_t packet_rssi() const noexcept = 0;
     [[nodiscard]] virtual float packet_snr() const noexcept = 0;

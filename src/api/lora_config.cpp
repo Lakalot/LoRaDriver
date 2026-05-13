@@ -32,10 +32,25 @@ constexpr bool is_high_band(std::uint32_t hz) noexcept {
 
 LoRaError LoRaConfig::validate() const noexcept {
     // Frequency vs chip
-    if (chip == ChipModel::SX1278) {
-        if (!freq_in_range_sx1278(frequency_hz)) return LoRaError::InvalidConfig;
-    } else {
-        if (!freq_in_range_sx1276(frequency_hz)) return LoRaError::InvalidConfig;
+    switch (chip) {
+        case ChipModel::SX1278:
+            if (!freq_in_range_sx1278(frequency_hz)) return LoRaError::InvalidConfig;
+            break;
+        case ChipModel::SX1277:
+            // SX1277: 137-1020 MHz, same as SX1276 except SF max=9
+            if (!freq_in_range_sx1276(frequency_hz)) return LoRaError::InvalidConfig;
+            if (spreading_factor > 9) return LoRaError::InvalidConfig;
+            break;
+        case ChipModel::SX1279:
+            // SX1279: 137-960 MHz
+            if (frequency_hz < 137'000'000u || frequency_hz > 960'000'000u) {
+                return LoRaError::InvalidConfig;
+            }
+            break;
+        case ChipModel::SX1276:
+        default:
+            if (!freq_in_range_sx1276(frequency_hz)) return LoRaError::InvalidConfig;
+            break;
     }
 
     // Bandwidth (membership)

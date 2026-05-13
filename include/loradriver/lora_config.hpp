@@ -6,7 +6,7 @@
 
 namespace loradriver {
 
-enum class ChipModel : std::uint8_t { SX1276, SX1278 };
+enum class ChipModel : std::uint8_t { SX1276, SX1277, SX1278, SX1279 };
 enum class PaOutput  : std::uint8_t { PaBoost, Rfo };
 
 struct LoRaConfig {

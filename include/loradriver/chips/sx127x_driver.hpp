@@ -47,6 +47,7 @@ public:
     [[nodiscard]] LoRaError set_bandwidth(std::uint32_t hz) noexcept override;
     [[nodiscard]] LoRaError set_lna_gain(std::uint8_t gain) noexcept override;
     [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept override;
+    [[nodiscard]] LoRaError start_continuous_wave() noexcept override;
 
     [[nodiscard]] std::int16_t packet_rssi() const noexcept override { return stats_.last_rssi_dbm; }
     [[nodiscard]] float packet_snr() const noexcept override {

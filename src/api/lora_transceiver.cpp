@@ -49,6 +49,7 @@ void LoRaTransceiver::end() noexcept {
     packet_cb_  = {};
     event_cb_   = {};
     tx_done_cb_ = {};
+    header_cb_  = {};
     state_ = State::Uninit;
 }
 
@@ -110,6 +111,7 @@ LoRaError LoRaTransceiver::start_cad(bool auto_rx) noexcept {
 void LoRaTransceiver::on_receive(PacketCallback cb) noexcept  { packet_cb_  = std::move(cb); }
 void LoRaTransceiver::on_event(EventCallback cb)   noexcept  { event_cb_   = std::move(cb); }
 void LoRaTransceiver::on_tx_done(TxDoneCallback cb) noexcept { tx_done_cb_ = std::move(cb); }
+void LoRaTransceiver::on_header(HeaderCallback cb)  noexcept { header_cb_  = std::move(cb); }
 
 void LoRaTransceiver::poll() noexcept {
     if (state_ == State::Uninit) return;
@@ -145,6 +147,9 @@ void LoRaTransceiver::on_driver_event(RadioEvent ev, int param) noexcept {
             break;
         case RadioEvent::CadDone:
             state_ = State::Standby;
+            break;
+        case RadioEvent::ValidHeader:
+            if (header_cb_) header_cb_();
             break;
         default: break;
     }

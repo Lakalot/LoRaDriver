@@ -28,6 +28,7 @@ public:
     using PacketCallback  = std::function<void(const LoRaPacket&, const std::uint8_t*, std::size_t)>;
     using EventCallback   = std::function<void(RadioEvent, int)>;
     using TxDoneCallback  = std::function<void()>;
+    using HeaderCallback  = std::function<void()>;
 
     explicit LoRaTransceiver(IRadioDriver& driver) noexcept;
     ~LoRaTransceiver();
@@ -51,6 +52,7 @@ public:
     void on_receive(PacketCallback cb) noexcept;
     void on_event(EventCallback cb) noexcept;
     void on_tx_done(TxDoneCallback cb) noexcept;
+    void on_header(HeaderCallback cb) noexcept;
 
     void poll() noexcept;
 
@@ -88,6 +90,7 @@ private:
     PacketCallback   packet_cb_{};
     EventCallback    event_cb_{};
     TxDoneCallback   tx_done_cb_{};
+    HeaderCallback   header_cb_{};
     bool             rx_continuous_ = false;
     std::uint8_t     rx_buf_[255]{};
 
