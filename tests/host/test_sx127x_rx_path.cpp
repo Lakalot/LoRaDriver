@@ -34,7 +34,7 @@ bool TestStartReceiveContinuous() {
     LD_EXPECT_EQ(drv.start_receive(true), LoRaError::OK);
     LD_EXPECT_EQ(spi.reg(reg::kOpMode), opmode::kLoRaRxCont);
     LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kDioMapping1) & 0xC0u), dio::kDio0RxDone);
-    LD_EXPECT_EQ(spi.reg(reg::kFifoRxBaseAddr), std::uint8_t{0});
+    LD_EXPECT_EQ(spi.reg(reg::kFifoRxBaseAddr), std::uint8_t{128});
     return true;
 }
 

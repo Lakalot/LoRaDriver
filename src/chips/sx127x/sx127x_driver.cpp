@@ -230,9 +230,10 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
     // Errata
     if ((e = apply_errata(cfg.bandwidth_hz, cfg.frequency_hz)) != LoRaError::OK) return e;
 
-    // FIFO base addresses (split FIFO: TX=0, RX=0 — overwrite-safe via FifoAddrPtr)
+    // FIFO base addresses: split halves so concurrent TX prep and RX cannot
+    // stomp each other. TX writes from 0, RX receives into 128.
     if ((e = spi_.write_register(reg::kFifoTxBaseAddr, 0)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 128)) != LoRaError::OK) return e;
 
     // DIO mapping: DIO0=RxDone by default
     if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0RxDone)) != LoRaError::OK) return e;
@@ -342,8 +343,8 @@ LoRaError SX127xDriver::start_receive(bool continuous) noexcept {
     if (!initialized_) return LoRaError::NotInitialized;
     LoRaError e;
     if ((e = set_op_mode(opmode::kLoRaStandby)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 0)) != LoRaError::OK) return e;
-    if ((e = spi_.write_register(reg::kFifoAddrPtr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoRxBaseAddr, 128)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoAddrPtr, 128)) != LoRaError::OK) return e;
     if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0RxDone)) != LoRaError::OK) return e;
     e = set_op_mode(continuous ? opmode::kLoRaRxCont : opmode::kLoRaRxSingle);
     if (e == LoRaError::OK && continuous && cfg_.rx_silence_timeout_ms > 0) {

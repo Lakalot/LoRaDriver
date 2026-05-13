@@ -183,6 +183,15 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestInitSetsTxBaseTo0AndRxBaseTo128() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kFifoTxBaseAddr), std::uint8_t{0});
+    LD_EXPECT_EQ(spi.reg(reg::kFifoRxBaseAddr), std::uint8_t{128});
+    return true;
+}
+
 bool TestBeginSx1278At433MHzWritesCorrectFrf() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -263,6 +272,7 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
     LD_RUN(TestBeginSx1278RejectsHighBandFrequency);
     return loradriver::test::report();
