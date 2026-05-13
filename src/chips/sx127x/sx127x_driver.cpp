@@ -231,6 +231,12 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
         (cfg.lna_boost_rx ? 0x03u : 0x00u));
     if ((e = spi_.write_register(reg::kLna, lna)) != LoRaError::OK) return e;
 
+    // Invert IQ (datasheet table 23). Std: 0x27/0x1D, Inverted: 0x67/0x19.
+    const std::uint8_t inv_iq  = cfg.invert_iq ? std::uint8_t{0x67} : std::uint8_t{0x27};
+    const std::uint8_t inv_iq2 = cfg.invert_iq ? std::uint8_t{0x19} : std::uint8_t{0x1D};
+    if ((e = spi_.write_register(reg::kInvertIq,  inv_iq))  != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kInvertIq2, inv_iq2)) != LoRaError::OK) return e;
+
     // Errata
     if ((e = apply_errata(cfg.bandwidth_hz, cfg.frequency_hz)) != LoRaError::OK) return e;
 

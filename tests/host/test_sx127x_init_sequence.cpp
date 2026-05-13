@@ -183,6 +183,28 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestInvertIqWritesBothRegisters() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.invert_iq = true;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kInvertIq) & 0x40u),
+                 std::uint8_t{0x40});
+    LD_EXPECT_EQ(spi.reg(reg::kInvertIq2), std::uint8_t{0x19});
+    return true;
+}
+
+bool TestInvertIqDisabledKeepsDefaults() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.invert_iq = false;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kInvertIq) & 0x40u, std::uint8_t{0});
+    return true;
+}
+
 bool TestBeginCalibratesRxImage() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -296,6 +318,8 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestInvertIqWritesBothRegisters);
+    LD_RUN(TestInvertIqDisabledKeepsDefaults);
     LD_RUN(TestBeginCalibratesRxImage);
     LD_RUN(TestSymbolTimeoutUsesConfigValueDirectly);
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
