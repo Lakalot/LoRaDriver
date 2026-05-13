@@ -437,7 +437,34 @@ LoRaError SX127xDriver::set_standby() noexcept {
 LoRaError SX127xDriver::set_frequency(std::uint32_t hz) noexcept {
     if (!initialized_)
         return LoRaError::NotInitialized;
-    return apply_frequency(hz);
+
+    // Datasheet §4.2.3.8: recalibrate RX image if the new frequency differs
+    // from the calibrated one by more than ~5%.
+    const std::uint32_t prev = cfg_.frequency_hz;
+    const std::uint32_t larger = (hz > prev) ? hz : prev;
+    const std::uint32_t smaller = (hz > prev) ? prev : hz;
+    // 64-bit to avoid overflow on large deltas (e.g. 868 MHz → 433 MHz).
+    const std::uint64_t delta = static_cast<std::uint64_t>(larger) - smaller;
+    const bool large_jump = delta * 20ull > static_cast<std::uint64_t>(prev); // > 5%
+
+    LoRaError e = apply_frequency(hz);
+    if (e != LoRaError::OK)
+        return e;
+
+    if (large_jump && !cfg_.skip_image_calibration) {
+        // ImageCal requires FSK mode access; bracket the call with mode hops.
+        if ((e = set_op_mode(opmode::kLoRaStandby)) != LoRaError::OK)
+            return e;
+        if ((e = set_op_mode(opmode::kFskSleep)) != LoRaError::OK)
+            return e;
+        if ((e = run_rx_image_calibration()) != LoRaError::OK)
+            return e;
+        if ((e = set_op_mode(opmode::kLoRaSleep)) != LoRaError::OK)
+            return e;
+        if ((e = set_op_mode(opmode::kLoRaStandby)) != LoRaError::OK)
+            return e;
+    }
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::set_tx_power(std::int8_t dbm, PaOutput out) noexcept {

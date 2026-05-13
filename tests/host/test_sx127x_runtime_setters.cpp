@@ -162,6 +162,44 @@ bool TestSetOcpEnabledPreservesTrim() {
     return true;
 }
 
+bool TestSetFrequencyLargeJumpTriggersRecalibration() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.frequency_hz = 868'000'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    spi.clear_writes();
+
+    // 868 MHz → 433 MHz is a ~50% drop, well past the 5% threshold.
+    LD_EXPECT_EQ(drv.set_frequency(433'920'000u), LoRaError::OK);
+
+    bool saw_cal = false;
+    for (const auto& w : spi.writes()) {
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u)
+            saw_cal = true;
+    }
+    LD_EXPECT(saw_cal);
+    return true;
+}
+
+bool TestSetFrequencySmallJumpSkipsRecalibration() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaConfig c = MakeCfg();
+    c.frequency_hz = 868'000'000u;
+    LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
+    spi.clear_writes();
+
+    // 868 → 868.5 MHz: 0.06% change, well below threshold.
+    LD_EXPECT_EQ(drv.set_frequency(868'500'000u), LoRaError::OK);
+
+    for (const auto& w : spi.writes()) {
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u)
+            return false;
+    }
+    return true;
+}
+
 int main() {
     LD_RUN(TestSetFrequencyChangesFrfRegisters);
     LD_RUN(TestSetSpreadingFactorRejectsOutOfRange);
@@ -175,5 +213,7 @@ int main() {
     LD_RUN(TestSetLnaGainSpecificValueDisablesAgc);
     LD_RUN(TestSetOcpEnabledTogglesBit5);
     LD_RUN(TestSetOcpEnabledPreservesTrim);
+    LD_RUN(TestSetFrequencyLargeJumpTriggersRecalibration);
+    LD_RUN(TestSetFrequencySmallJumpSkipsRecalibration);
     return loradriver::test::report();
 }
