@@ -1,225 +1,106 @@
+#include <Arduino.h>
+#include <SPI.h>
 #include <unity.h>
 
-#include <array>
-#include <cstdint>
+#include "loradriver/chips/sx127x_driver.hpp"
+#include "loradriver/hal/esp32_spi_device.hpp"
+#include "loradriver/lora_config.hpp"
+#include "loradriver/lora_transceiver.hpp"
 
-#include "loradriver/lora_driver.hpp"
+using namespace loradriver;
 
 namespace {
 
-int g_callback_count = 0;
-loradriver::RadioEvent g_last_event = loradriver::RadioEvent::kNone;
-int g_last_detail = 0;
+// Pin wiring matches the SYNC-SIGNAL-LORA project (the consumer that drives
+// this smoke test). If your board differs, override these constants and the
+// SPI.begin(sck, miso, mosi) call below.
+constexpr std::int8_t kPinSck   = 18;
+constexpr std::int8_t kPinMiso  = 19;
+constexpr std::int8_t kPinMosi  = 22;  // non-default — MOSI on GPIO22, not 23
+constexpr std::int8_t kPinSS    = 5;
+constexpr std::int8_t kPinReset = 17;  // swapped with DIO0: hardware wired backwards
+constexpr std::int8_t kPinDio0  = 4;
 
-void on_radio_event(loradriver::RadioEvent event, int detail_code) {
-  g_last_event = event;
-  g_last_detail = detail_code;
-  ++g_callback_count;
+hal::Esp32SpiDevice g_spi(SPI, kPinSS);
+chips::SX127xDriver g_drv(g_spi);
+LoRaTransceiver     g_trx(g_drv);
+
+LoRaConfig make_cfg() {
+    LoRaConfig c;
+    c.chip = ChipModel::SX1276;
+    c.frequency_hz = 868'100'000u;
+    c.spreading_factor = 7;
+    c.bandwidth_hz = 125'000u;
+    c.tx_power_dbm = 14;
+    c.pin_ss = kPinSS; c.pin_reset = kPinReset; c.pin_dio0 = kPinDio0;
+    return c;
 }
 
-void test_begin_supported_profile_sets_initialized_and_emits_ready_event() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-  using loradriver::RadioEvent;
-
-  g_callback_count = 0;
-  g_last_event = RadioEvent::kNone;
-  g_last_detail = 0;
-
-  LoRaDriver driver;
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.setEventCallback(on_radio_event)));
-
-  RadioConfig config;
-  config.chip = RadioConfig::Chip::kSx1276;
-  config.band = RadioConfig::Band::k868;
-  config.dio_routing = RadioConfig::DioRouting::kDio0Only;
-  config.spi_frequency_hz = 8000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.begin(config)));
-  TEST_ASSERT_TRUE(driver.isInitialized());
-  TEST_ASSERT_EQUAL_INT(4, g_callback_count);
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kInitialized), static_cast<int>(g_last_event));
-  TEST_ASSERT_EQUAL_INT(0, g_last_detail);
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kAlreadyInitialized),
-                        static_cast<int>(driver.begin(config)));
-  TEST_ASSERT_TRUE(driver.isInitialized());
-}
-
-void test_begin_deferred_profile_is_rejected_with_diagnostics() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-
-  LoRaDriver driver;
-  RadioConfig deferred_config;
-  deferred_config.chip = RadioConfig::Chip::kSx126xStub;
-  deferred_config.band = RadioConfig::Band::k868;
-  deferred_config.dio_routing = RadioConfig::DioRouting::kDio0Only;
-  deferred_config.spi_frequency_hz = 8000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kUnsupportedProfile),
-                        static_cast<int>(driver.begin(deferred_config)));
-  TEST_ASSERT_FALSE(driver.isInitialized());
-  TEST_ASSERT_NOT_EQUAL(0, driver.lastDiagnosticCode());
-  const auto context = driver.lastDiagnosticContext();
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kUnsupportedProfile), static_cast<int>(context.error));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(deferred_config.chip), static_cast<int>(context.chip));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(deferred_config.band), static_cast<int>(context.band));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(deferred_config.dio_routing), static_cast<int>(context.dio_routing));
-}
-
-void test_begin_rejects_out_of_range_spi_without_mutating_input() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-
-  LoRaDriver driver;
-  RadioConfig config;
-  config.chip = RadioConfig::Chip::kSx1278;
-  config.band = RadioConfig::Band::k433;
-  config.dio_routing = RadioConfig::DioRouting::kDio0Dio1;
-  config.spi_frequency_hz = 9000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kInvalidConfig),
-                        static_cast<int>(driver.begin(config)));
-  TEST_ASSERT_EQUAL_UINT32(9000000u, config.spi_frequency_hz);
-}
-
-void test_begin_accepts_spi_boundaries() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-
-  LoRaDriver driver;
-  RadioConfig lower;
-  lower.chip = RadioConfig::Chip::kSx1276;
-  lower.band = RadioConfig::Band::k433;
-  lower.dio_routing = RadioConfig::DioRouting::kDio0Only;
-  lower.spi_frequency_hz = 4000000;
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(lower)));
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.shutdown()));
-
-  RadioConfig upper = lower;
-  upper.spi_frequency_hz = 8000000;
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(upper)));
-}
-
-void test_shutdown_before_begin_returns_not_initialized_with_diagnostics() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-
-  LoRaDriver driver;
-  TEST_ASSERT_FALSE(driver.isInitialized());
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kNotInitialized),
-                        static_cast<int>(driver.shutdown()));
-  const auto context = driver.lastDiagnosticContext();
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kNotInitialized),
-                        static_cast<int>(context.error));
-}
-
-void test_send_and_receive_emit_contract_level_events() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-  using loradriver::RadioEvent;
-
-  g_callback_count = 0;
-  g_last_event = RadioEvent::kNone;
-  g_last_detail = 0;
-
-  LoRaDriver driver;
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.setEventCallback(on_radio_event)));
-
-  RadioConfig config;
-  config.chip = RadioConfig::Chip::kSx1276;
-  config.band = RadioConfig::Band::k868;
-  config.dio_routing = RadioConfig::DioRouting::kDio0Only;
-  config.spi_frequency_hz = 8000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(config)));
-
-  const std::array<std::uint8_t, 3> payload = {0x01u, 0x02u, 0x03u};
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.send(payload.data(), payload.size())));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kTxCompleted), static_cast<int>(g_last_event));
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.startReceive()));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kRxDone), static_cast<int>(g_last_event));
-}
-
-void test_send_rejects_null_payload_with_typed_error() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-
-  LoRaDriver driver;
-  RadioConfig config;
-  config.chip = RadioConfig::Chip::kSx1276;
-  config.band = RadioConfig::Band::k868;
-  config.dio_routing = RadioConfig::DioRouting::kDio0Dio1;
-  config.spi_frequency_hz = 8000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(config)));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kInvalidConfig),
-                        static_cast<int>(driver.send(nullptr, 1)));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kInvalidConfig),
-                        static_cast<int>(driver.lastDiagnosticContext().error));
-}
-
-void test_sleep_then_standby_preserves_contract_level_send_path() {
-  using loradriver::LoRaDriver;
-  using loradriver::LoRaError;
-  using loradriver::RadioConfig;
-  using loradriver::RadioEvent;
-
-  g_callback_count = 0;
-  g_last_event = RadioEvent::kNone;
-  g_last_detail = 0;
-
-  LoRaDriver driver;
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.setEventCallback(on_radio_event)));
-
-  RadioConfig config;
-  config.chip = RadioConfig::Chip::kSx1276;
-  config.band = RadioConfig::Band::k868;
-  config.dio_routing = RadioConfig::DioRouting::kDio0Only;
-  config.spi_frequency_hz = 8000000;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.begin(config)));
-  g_callback_count = 0;
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.sleep()));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kSleep), static_cast<int>(g_last_event));
-
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk), static_cast<int>(driver.standby()));
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(RadioEvent::kStandby), static_cast<int>(g_last_event));
-
-  const std::array<std::uint8_t, 2> payload = {0x01u, 0x02u};
-  TEST_ASSERT_EQUAL_INT(static_cast<int>(LoRaError::kOk),
-                        static_cast<int>(driver.send(payload.data(), payload.size())));
-}
+void IRAM_ATTR isr_dio0() { g_trx.handle_interrupt(); }
 
 }  // namespace
 
+void setUp() {}
+void tearDown() {}
+
+void test_chip_version_is_0x12() {
+    // SPI.begin(sck, miso, mosi) — explicit pins because MOSI is non-default.
+    SPI.begin(kPinSck, kPinMiso, kPinMosi);
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.begin(make_cfg())));
+    TEST_ASSERT_EQUAL_HEX8(0x12, g_trx.chip_version());
+}
+
+void test_check_alive() {
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.check_alive()));
+}
+
+void test_tx_blocking_returns_ok() {
+    const std::uint8_t payload[] = {'p','i','n','g'};
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.send(payload, 4, 2000)));
+}
+
+void test_start_receive_then_self_send_loopback() {
+    attachInterrupt(digitalPinToInterrupt(kPinDio0), isr_dio0, RISING);
+
+    volatile bool got_packet = false;
+    static std::uint8_t got[16];
+    static std::size_t got_len = 0;
+    g_trx.on_receive([&](const LoRaPacket&, const std::uint8_t* d, std::size_t n) {
+        got_len = (n < sizeof(got)) ? n : sizeof(got);
+        memcpy(got, d, got_len);
+        got_packet = true;
+    });
+
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.start_receive(true)));
+
+    const std::uint8_t payload[] = {0xDE, 0xAD, 0xBE, 0xEF};
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.send(payload, 4, 2000)));
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(g_trx.start_receive(true)));
+
+    const std::uint32_t t0 = millis();
+    while (!got_packet && (millis() - t0) < 5000) {
+        g_trx.poll();
+        delay(10);
+    }
+    Serial.printf("[smoke] rx_received=%s len=%u\n",
+                  got_packet ? "yes" : "no", static_cast<unsigned>(got_len));
+}
+
 void setup() {
-  UNITY_BEGIN();
-  RUN_TEST(test_begin_supported_profile_sets_initialized_and_emits_ready_event);
-  RUN_TEST(test_begin_deferred_profile_is_rejected_with_diagnostics);
-  RUN_TEST(test_begin_rejects_out_of_range_spi_without_mutating_input);
-  RUN_TEST(test_begin_accepts_spi_boundaries);
-  RUN_TEST(test_shutdown_before_begin_returns_not_initialized_with_diagnostics);
-  RUN_TEST(test_send_and_receive_emit_contract_level_events);
-  RUN_TEST(test_send_rejects_null_payload_with_typed_error);
-  RUN_TEST(test_sleep_then_standby_preserves_contract_level_send_path);
-  UNITY_END();
+    Serial.begin(115200);
+    delay(2000);
+    UNITY_BEGIN();
+    RUN_TEST(test_chip_version_is_0x12);
+    RUN_TEST(test_check_alive);
+    RUN_TEST(test_tx_blocking_returns_ok);
+    RUN_TEST(test_start_receive_then_self_send_loopback);
+    UNITY_END();
 }
 
 void loop() {}

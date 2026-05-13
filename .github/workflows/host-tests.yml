@@ -1,0 +1,57 @@
+name: Host tests
+
+on:
+  push:
+    branches: [main, "rewrite/**", "hardening/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build/host
+
+      - name: Build
+        run: cmake --build build/host --config Debug
+
+      - name: Run host tests
+        run: ctest --test-dir build/host -C Debug --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure with sanitizers
+        run: cmake -S . -B build/asan -DLORADRIVER_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build/asan
+      - name: Run
+        run: ctest --test-dir build/asan --output-on-failure
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format
+      - name: Run clang-format check
+        run: ./tools/lint.sh
+
+  no-exceptions-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build/noex -DLORADRIVER_NO_EXCEPTIONS_MSVC=ON
+      - name: Build
+        run: cmake --build build/noex --config Debug
+      - name: Run
+        run: ctest --test-dir build/noex -C Debug --output-on-failure

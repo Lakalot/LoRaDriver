@@ -1,13 +1,23 @@
-/// @file version.hpp
-/// @brief Compile-time version identifiers for LoRaDriver.
-///
-/// These macros are used by DiagnosticContext and IncidentSnapshot to embed
-/// the driver version into diagnostic records at compile time.
-
 #pragma once
 
-#define LORADRIVER_VERSION_MAJOR 1
-#define LORADRIVER_VERSION_MINOR 0
-#define LORADRIVER_VERSION_PATCH 0
+#include <cstdint>
 
-#define LORADRIVER_VERSION_STRING "1.0.0"
+namespace loradriver {
+
+/// @brief Compile-time major version. Matches CMake project() VERSION.
+constexpr std::uint8_t kVersionMajor = 1;
+/// @brief Compile-time minor version.
+constexpr std::uint8_t kVersionMinor = 1;
+/// @brief Compile-time patch version.
+constexpr std::uint8_t kVersionPatch = 0;
+
+/// @brief Runtime major version (matches kVersionMajor at build time).
+[[nodiscard]] std::uint8_t version_major() noexcept;
+/// @brief Runtime minor version.
+[[nodiscard]] std::uint8_t version_minor() noexcept;
+/// @brief Runtime patch version.
+[[nodiscard]] std::uint8_t version_patch() noexcept;
+/// @brief Runtime version string "MAJOR.MINOR.PATCH".
+[[nodiscard]] const char* version_string() noexcept;
+
+} // namespace loradriver
