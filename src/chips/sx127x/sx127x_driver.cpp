@@ -404,20 +404,25 @@ LoRaError SX127xDriver::start_receive(bool continuous) noexcept {
     return e;
 }
 
-int SX127xDriver::read_packet(std::uint8_t* buf, std::size_t max_len) noexcept {
-    if (!initialized_ || buf == nullptr || max_len == 0u) return 0;
+LoRaError SX127xDriver::read_packet(std::uint8_t* buf,
+                                    std::size_t max_len,
+                                    std::size_t& out_len) noexcept {
+    out_len = 0;
+    if (!initialized_) return LoRaError::NotInitialized;
+    if (buf == nullptr || max_len == 0u) return LoRaError::NullArgument;
 
     std::uint8_t rx_addr = 0;
     std::uint8_t nb_bytes = 0;
-    if (spi_.read_register(reg::kFifoRxCurrentAddr, rx_addr) != LoRaError::OK) return 0;
-    if (spi_.read_register(reg::kRxNbBytes, nb_bytes) != LoRaError::OK) return 0;
-    if (nb_bytes == 0u) return 0;
+    LoRaError e;
+    if ((e = spi_.read_register(reg::kFifoRxCurrentAddr, rx_addr)) != LoRaError::OK) return e;
+    if ((e = spi_.read_register(reg::kRxNbBytes, nb_bytes)) != LoRaError::OK) return e;
+    if (nb_bytes == 0u) return LoRaError::OK;
 
     const std::size_t to_read = (nb_bytes <= max_len) ? nb_bytes : max_len;
-    if (spi_.write_register(reg::kFifoAddrPtr, rx_addr) != LoRaError::OK) return 0;
-    if (spi_.burst_read(reg::kFifo, buf, to_read) != LoRaError::OK) return 0;
-
-    return static_cast<int>(to_read);
+    if ((e = spi_.write_register(reg::kFifoAddrPtr, rx_addr)) != LoRaError::OK) return e;
+    if ((e = spi_.burst_read(reg::kFifo, buf, to_read)) != LoRaError::OK) return e;
+    out_len = to_read;
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::start_cad(bool auto_rx) noexcept {

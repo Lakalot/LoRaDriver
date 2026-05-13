@@ -55,7 +55,8 @@ bool TestStartReceiveRejectedBeforeBegin() {
 bool TestReadPacketRejectsNull() {
     FakeSpiDevice spi; SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
-    LD_EXPECT_EQ(drv.read_packet(nullptr, 10), 0);
+    std::size_t out = 0;
+    LD_EXPECT_EQ(drv.read_packet(nullptr, 10, out), LoRaError::NullArgument);
     return true;
 }
 
@@ -70,8 +71,9 @@ bool TestReadPacketCopiesFromFifo() {
     spi.set_register(reg::kRxNbBytes, 4);
 
     std::uint8_t out[8]{};
-    const int n = drv.read_packet(out, sizeof(out));
-    LD_EXPECT_EQ(n, 4);
+    std::size_t n = 0;
+    LD_EXPECT_EQ(drv.read_packet(out, sizeof(out), n), LoRaError::OK);
+    LD_EXPECT_EQ(n, std::size_t{4});
     for (int i = 0; i < 4; ++i) LD_EXPECT_EQ(out[i], payload[i]);
     return true;
 }
@@ -86,8 +88,9 @@ bool TestReadPacketClampsToMaxLen() {
     spi.set_register(reg::kRxNbBytes, 10);
 
     std::uint8_t out[4]{};
-    const int n = drv.read_packet(out, sizeof(out));
-    LD_EXPECT_EQ(n, 4);
+    std::size_t n = 0;
+    LD_EXPECT_EQ(drv.read_packet(out, sizeof(out), n), LoRaError::OK);
+    LD_EXPECT_EQ(n, std::size_t{4});
     return true;
 }
 

@@ -35,7 +35,9 @@ public:
     [[nodiscard]] virtual bool is_transmitting() const noexcept = 0;
 
     [[nodiscard]] virtual LoRaError start_receive(bool continuous = true) noexcept = 0;
-    [[nodiscard]] virtual int read_packet(std::uint8_t* buf, std::size_t max_len) noexcept = 0;
+    [[nodiscard]] virtual LoRaError read_packet(std::uint8_t* buf,
+                                                std::size_t max_len,
+                                                std::size_t& out_len) noexcept = 0;
 
     [[nodiscard]] virtual LoRaError start_cad(bool auto_rx = false) noexcept = 0;
 

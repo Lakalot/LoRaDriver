@@ -35,7 +35,9 @@ public:
     [[nodiscard]] bool is_transmitting() const noexcept override { return tx_in_progress_; }
 
     [[nodiscard]] LoRaError start_receive(bool continuous) noexcept override;
-    [[nodiscard]] int read_packet(std::uint8_t* buf, std::size_t max_len) noexcept override;
+    [[nodiscard]] LoRaError read_packet(std::uint8_t* buf,
+                                        std::size_t max_len,
+                                        std::size_t& out_len) noexcept override;
 
     [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept override;
 

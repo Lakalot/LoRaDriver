@@ -122,15 +122,16 @@ void LoRaTransceiver::on_driver_event(RadioEvent ev, int param) noexcept {
 
     switch (ev) {
         case RadioEvent::RxDone: {
-            const int n = driver_.read_packet(rx_buf_, sizeof(rx_buf_));
-            if (n > 0 && packet_cb_) {
+            std::size_t n = 0;
+            const LoRaError rr = driver_.read_packet(rx_buf_, sizeof(rx_buf_), n);
+            if (rr == LoRaError::OK && n > 0 && packet_cb_) {
                 LoRaPacket meta{};
                 meta.rssi_dbm           = driver_.packet_rssi();
                 meta.snr_q4             = static_cast<std::int16_t>(driver_.packet_snr() * 4.0f);
                 meta.frequency_error_hz = driver_.frequency_error_hz();
                 meta.length             = static_cast<std::uint8_t>(n);
                 meta.crc_valid          = true;
-                packet_cb_(meta, rx_buf_, static_cast<std::size_t>(n));
+                packet_cb_(meta, rx_buf_, n);
             }
             if (!rx_continuous_) state_ = State::Standby;
             break;
