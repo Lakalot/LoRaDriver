@@ -22,24 +22,34 @@ static LoRaConfig MakeCfg() {
     LoRaConfig c;
     c.chip = ChipModel::SX1276;
     c.frequency_hz = 868'000'000u;
-    c.spreading_factor = 9; c.bandwidth_hz = 125'000u;
-    c.coding_rate = 5; c.preamble_length = 8;
-    c.sync_word = 0x12; c.crc_enabled = true;
-    c.tx_power_dbm = 14; c.pa_output = PaOutput::PaBoost;
+    c.spreading_factor = 9;
+    c.bandwidth_hz = 125'000u;
+    c.coding_rate = 5;
+    c.preamble_length = 8;
+    c.sync_word = 0x12;
+    c.crc_enabled = true;
+    c.tx_power_dbm = 14;
+    c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
 bool TestBeginEntersStandby() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT(trx.state() == LoRaTransceiver::State::Standby);
     return true;
 }
 
 bool TestSleepThenStandby() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(trx.set_sleep(), LoRaError::OK);
     LD_EXPECT(trx.state() == LoRaTransceiver::State::Sleep);
@@ -49,7 +59,9 @@ bool TestSleepThenStandby() {
 }
 
 bool TestStartReceiveContinuousTransitions() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(trx.start_receive(true), LoRaError::OK);
     LD_EXPECT(trx.state() == LoRaTransceiver::State::RxContinuous);
@@ -57,7 +69,9 @@ bool TestStartReceiveContinuousTransitions() {
 }
 
 bool TestStartReceiveSingleTransitions() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(trx.start_receive(false), LoRaError::OK);
     LD_EXPECT(trx.state() == LoRaTransceiver::State::RxSingle);
@@ -65,14 +79,18 @@ bool TestStartReceiveSingleTransitions() {
 }
 
 bool TestSendRejectsBeforeBegin() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     const std::uint8_t buf[1] = {0xAA};
     LD_EXPECT_EQ(trx.send(buf, 1, 100), LoRaError::NotInitialized);
     return true;
 }
 
 bool TestSendCompletesWhenTxDoneIrqArrives() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
 
     // Pre-arm: TxDone IRQ is already pending; handle_interrupt below pushes a ring
@@ -88,7 +106,9 @@ bool TestSendCompletesWhenTxDoneIrqArrives() {
 }
 
 bool TestSendReturnsTxTimeout() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     const std::uint8_t buf[2] = {1, 2};
     // No IRQ arranged → driver watchdog fires after timeout_ms=0
@@ -101,7 +121,9 @@ bool TestSendReturnsTxTimeout() {
 }
 
 bool TestOnReceiveDispatchesPacket() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
 
     bool got = false;
@@ -110,7 +132,9 @@ bool TestOnReceiveDispatchesPacket() {
     trx.on_receive([&](const LoRaPacket& meta, const std::uint8_t* data, std::size_t len) {
         got = true;
         got_len = len;
-        if (len <= 3) for (std::size_t i = 0; i < len; ++i) got_data[i] = data[i];
+        if (len <= 3)
+            for (std::size_t i = 0; i < len; ++i)
+                got_data[i] = data[i];
         (void)meta;
     });
 
@@ -132,12 +156,15 @@ bool TestOnReceiveDispatchesPacket() {
     trx.poll();
     LD_EXPECT(got);
     LD_EXPECT_EQ(got_len, std::size_t{3});
-    for (int i = 0; i < 3; ++i) LD_EXPECT_EQ(got_data[i], payload[i]);
+    for (int i = 0; i < 3; ++i)
+        LD_EXPECT_EQ(got_data[i], payload[i]);
     return true;
 }
 
 bool TestOnEventForwardsRadioEvents() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     int count = 0;
     trx.on_event([&](RadioEvent, int) { ++count; });
@@ -149,7 +176,9 @@ bool TestOnEventForwardsRadioEvents() {
 }
 
 bool TestOnTxDoneFiresAfterTransmission() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     bool fired = false;
     trx.on_tx_done([&]() { fired = true; });
@@ -162,7 +191,9 @@ bool TestOnTxDoneFiresAfterTransmission() {
 }
 
 bool TestHeaderCallbackFiresOnValidHeader() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     bool fired = false;
     trx.on_header([&]() { fired = true; });
@@ -174,7 +205,9 @@ bool TestHeaderCallbackFiresOnValidHeader() {
 }
 
 bool TestEndClearsCallbacks() {
-    FakeSpiDevice spi; SX127xDriver drv(spi); LoRaTransceiver trx(drv);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LoRaTransceiver trx(drv);
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
     int rx_callback_calls = 0;
     trx.on_receive([&rx_callback_calls](const LoRaPacket&, const std::uint8_t*, std::size_t) {

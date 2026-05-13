@@ -11,39 +11,48 @@ using loradriver::LoRaError;
 using loradriver::PaOutput;
 using loradriver::chips::SX127xDriver;
 using loradriver::test::FakeSpiDevice;
-namespace reg    = loradriver::chips::sx127x::reg;
+namespace reg = loradriver::chips::sx127x::reg;
 namespace opmode = loradriver::chips::sx127x::opmode;
-namespace dio    = loradriver::chips::sx127x::dio;
+namespace dio = loradriver::chips::sx127x::dio;
 
 static LoRaConfig MakeCfg() {
     LoRaConfig c;
     c.chip = ChipModel::SX1276;
     c.frequency_hz = 868'000'000u;
-    c.spreading_factor = 9; c.bandwidth_hz = 125'000u;
-    c.coding_rate = 5; c.preamble_length = 8;
-    c.sync_word = 0x12; c.crc_enabled = true;
-    c.tx_power_dbm = 14; c.pa_output = PaOutput::PaBoost;
+    c.spreading_factor = 9;
+    c.bandwidth_hz = 125'000u;
+    c.coding_rate = 5;
+    c.preamble_length = 8;
+    c.sync_word = 0x12;
+    c.crc_enabled = true;
+    c.tx_power_dbm = 14;
+    c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
 bool TestTransmitRejectsBeforeBegin() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     const std::uint8_t buf[1] = {0xAA};
     LD_EXPECT_EQ(drv.start_transmit(buf, 1, 1000), LoRaError::NotInitialized);
     return true;
 }
 
 bool TestTransmitRejectsNullBuffer() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.start_transmit(nullptr, 4, 1000), LoRaError::NullArgument);
     return true;
 }
 
 bool TestTransmitRejectsZeroLength() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     const std::uint8_t buf[1] = {0xAA};
     LD_EXPECT_EQ(drv.start_transmit(buf, 0, 1000), LoRaError::InvalidConfig);
@@ -51,7 +60,8 @@ bool TestTransmitRejectsZeroLength() {
 }
 
 bool TestTransmitRejectsOversizedPayload() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     std::uint8_t buf[256]{};
     LD_EXPECT_EQ(drv.start_transmit(buf, 256, 1000), LoRaError::TxBufferTooLarge);
@@ -59,7 +69,8 @@ bool TestTransmitRejectsOversizedPayload() {
 }
 
 bool TestTransmitWritesFifoAndPayloadLength() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.clear_writes();
     const std::uint8_t buf[5] = {1, 2, 3, 4, 5};
@@ -72,8 +83,8 @@ bool TestTransmitWritesFifoAndPayloadLength() {
     //  ModemConfig1 at 0x1D, etc. — overlap the FIFO splay range 0..4.)
     int payload_writes_seen = 0;
     for (const auto& w : spi.writes()) {
-        if (payload_writes_seen < 5 && w.reg == static_cast<std::uint8_t>(payload_writes_seen)
-            && w.value == buf[payload_writes_seen]) {
+        if (payload_writes_seen < 5 && w.reg == static_cast<std::uint8_t>(payload_writes_seen) &&
+            w.value == buf[payload_writes_seen]) {
             ++payload_writes_seen;
         }
     }
@@ -82,7 +93,8 @@ bool TestTransmitWritesFifoAndPayloadLength() {
 }
 
 bool TestTransmitSetsTxOpModeAndDio0TxDone() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     const std::uint8_t buf[2] = {0xAA, 0x55};
     LD_EXPECT_EQ(drv.start_transmit(buf, 2, 1000), LoRaError::OK);
@@ -93,7 +105,8 @@ bool TestTransmitSetsTxOpModeAndDio0TxDone() {
 }
 
 bool TestTransmitFailsOnSpiError() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.fail_writes(true);
     const std::uint8_t buf[2] = {0xAA, 0x55};
@@ -103,7 +116,8 @@ bool TestTransmitFailsOnSpiError() {
 }
 
 bool TestStartContinuousWaveSetsTxContBit() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.start_continuous_wave(), LoRaError::OK);
     LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig2) & 0x08u),

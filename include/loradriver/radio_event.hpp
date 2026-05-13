@@ -17,4 +17,4 @@ enum class RadioEvent : std::uint8_t {
     IrqOverflow,
 };
 
-}  // namespace loradriver
+} // namespace loradriver

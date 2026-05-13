@@ -8,10 +8,14 @@
 
 #ifdef _WIN32
 #include <windows.h>
-static void sleep_ms(int ms) { Sleep(ms); }
+static void sleep_ms(int ms) {
+    Sleep(ms);
+}
 #else
 #include <unistd.h>
-static void sleep_ms(int ms) { usleep(ms * 1000); }
+static void sleep_ms(int ms) {
+    usleep(ms * 1000);
+}
 #endif
 
 using loradriver::ChipModel;
@@ -28,17 +32,24 @@ static LoRaConfig MakeCfg() {
     LoRaConfig c;
     c.chip = ChipModel::SX1276;
     c.frequency_hz = 868'000'000u;
-    c.spreading_factor = 9; c.bandwidth_hz = 125'000u;
-    c.coding_rate = 5; c.preamble_length = 8;
-    c.sync_word = 0x12; c.crc_enabled = true;
-    c.tx_power_dbm = 14; c.pa_output = PaOutput::PaBoost;
+    c.spreading_factor = 9;
+    c.bandwidth_hz = 125'000u;
+    c.coding_rate = 5;
+    c.preamble_length = 8;
+    c.sync_word = 0x12;
+    c.crc_enabled = true;
+    c.tx_power_dbm = 14;
+    c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
 bool TestHandleInterruptEnqueuesEvent() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     drv.handle_interrupt();
     int count = 0;
@@ -50,11 +61,13 @@ bool TestHandleInterruptEnqueuesEvent() {
 }
 
 bool TestProcessEventsEmitsRxDone() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     bool saw_rxdone = false;
     drv.set_event_callback([&](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxDone) saw_rxdone = true;
+        if (ev == RadioEvent::RxDone)
+            saw_rxdone = true;
     });
     spi.set_register(reg::kIrqFlags, irq::kRxDone);
     drv.handle_interrupt();
@@ -64,11 +77,13 @@ bool TestProcessEventsEmitsRxDone() {
 }
 
 bool TestProcessEventsEmitsTxDone() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     bool saw_txdone = false;
     drv.set_event_callback([&](RadioEvent ev, int) {
-        if (ev == RadioEvent::TxDone) saw_txdone = true;
+        if (ev == RadioEvent::TxDone)
+            saw_txdone = true;
     });
     spi.set_register(reg::kIrqFlags, irq::kTxDone);
     drv.handle_interrupt();
@@ -79,11 +94,13 @@ bool TestProcessEventsEmitsTxDone() {
 }
 
 bool TestProcessEventsEmitsRxCrcError() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     bool saw_crc = false;
     drv.set_event_callback([&](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxCrcError) saw_crc = true;
+        if (ev == RadioEvent::RxCrcError)
+            saw_crc = true;
     });
     spi.set_register(reg::kIrqFlags, irq::kRxDone | irq::kPayloadCrcError);
     drv.handle_interrupt();
@@ -94,7 +111,8 @@ bool TestProcessEventsEmitsRxCrcError() {
 }
 
 bool TestProcessEventsClearsIrqFlags() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.clear_writes();
     spi.set_register(reg::kIrqFlags, irq::kRxDone);
@@ -102,22 +120,26 @@ bool TestProcessEventsClearsIrqFlags() {
     drv.process_events();
     bool saw_clear = false;
     for (const auto& w : spi.writes()) {
-        if (w.reg == reg::kIrqFlags && w.value == irq::kClearAll) saw_clear = true;
+        if (w.reg == reg::kIrqFlags && w.value == irq::kClearAll)
+            saw_clear = true;
     }
     LD_EXPECT(saw_clear);
     return true;
 }
 
 bool TestIrqOverflowDetected() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
-    for (int i = 0; i < 20; ++i) drv.handle_interrupt();
+    for (int i = 0; i < 20; ++i)
+        drv.handle_interrupt();
     LD_EXPECT(drv.get_stats().irq_overflows > 0u);
     return true;
 }
 
 bool TestRandomByteReadsWidebandRssi() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.set_register(reg::kRssiWideband, 0x5A);
     LD_EXPECT_EQ(drv.random_byte(), std::uint8_t{0x5A});
@@ -125,13 +147,15 @@ bool TestRandomByteReadsWidebandRssi() {
 }
 
 bool TestTxWatchdogTimeout() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     const std::uint8_t buf[2] = {1, 2};
     LD_EXPECT_EQ(drv.start_transmit(buf, 2, 0), LoRaError::OK);
     bool saw_timeout = false;
     drv.set_event_callback([&](RadioEvent ev, int) {
-        if (ev == RadioEvent::TxTimeout) saw_timeout = true;
+        if (ev == RadioEvent::TxTimeout)
+            saw_timeout = true;
     });
     drv.process_events();
     LD_EXPECT(saw_timeout);
@@ -141,29 +165,34 @@ bool TestTxWatchdogTimeout() {
 }
 
 bool TestRxSilenceWatchdogFiresWhenIdle() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
     c.rx_silence_timeout_ms = 0;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
     LD_EXPECT_EQ(drv.start_receive(true), LoRaError::OK);
     int rx_timeouts = 0;
     drv.set_event_callback([&rx_timeouts](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxTimeout) ++rx_timeouts;
+        if (ev == RadioEvent::RxTimeout)
+            ++rx_timeouts;
     });
-    for (int i = 0; i < 100; ++i) drv.process_events();
+    for (int i = 0; i < 100; ++i)
+        drv.process_events();
     LD_EXPECT_EQ(rx_timeouts, 0);
     return true;
 }
 
 bool TestRxSilenceWatchdogTriggersAfterTimeout() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
     c.rx_silence_timeout_ms = 1;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
     LD_EXPECT_EQ(drv.start_receive(true), LoRaError::OK);
     int rx_timeouts = 0;
     drv.set_event_callback([&rx_timeouts](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxTimeout) ++rx_timeouts;
+        if (ev == RadioEvent::RxTimeout)
+            ++rx_timeouts;
     });
     sleep_ms(5);
     drv.process_events();
@@ -172,7 +201,8 @@ bool TestRxSilenceWatchdogTriggersAfterTimeout() {
 }
 
 bool TestHeartbeatDetectsDeadChip() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.set_chip_version(0xFF);
     LD_EXPECT_EQ(drv.check_alive(), LoRaError::UnsupportedChip);
@@ -180,21 +210,24 @@ bool TestHeartbeatDetectsDeadChip() {
 }
 
 bool TestHeartbeatPassesOnLiveChip() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.check_alive(), LoRaError::OK);
     return true;
 }
 
 bool TestPollingModeReadsIrqFlagsWithoutInterrupt() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
     c.polling_mode = true;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
 
     int rxdone_count = 0;
     drv.set_event_callback([&rxdone_count](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxDone) ++rxdone_count;
+        if (ev == RadioEvent::RxDone)
+            ++rxdone_count;
     });
     spi.set_register(reg::kIrqFlags, irq::kRxDone);
     drv.process_events();
@@ -203,14 +236,16 @@ bool TestPollingModeReadsIrqFlagsWithoutInterrupt() {
 }
 
 bool TestNonPollingModeIgnoresIrqFlagsWithoutInterrupt() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
     c.polling_mode = false;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
 
     int rxdone_count = 0;
     drv.set_event_callback([&rxdone_count](RadioEvent ev, int) {
-        if (ev == RadioEvent::RxDone) ++rxdone_count;
+        if (ev == RadioEvent::RxDone)
+            ++rxdone_count;
     });
     spi.set_register(reg::kIrqFlags, irq::kRxDone);
     drv.process_events();

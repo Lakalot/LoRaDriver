@@ -23,4 +23,4 @@ enum class LoRaError : std::uint8_t {
 
 const char* to_string(LoRaError e) noexcept;
 
-}  // namespace loradriver
+} // namespace loradriver

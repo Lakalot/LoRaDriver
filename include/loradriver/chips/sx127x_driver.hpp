@@ -29,14 +29,12 @@ public:
     [[nodiscard]] LoRaError set_sleep() noexcept override;
     [[nodiscard]] LoRaError set_standby() noexcept override;
 
-    [[nodiscard]] LoRaError start_transmit(const std::uint8_t* data,
-                                           std::size_t len,
+    [[nodiscard]] LoRaError start_transmit(const std::uint8_t* data, std::size_t len,
                                            std::uint32_t timeout_ms) noexcept override;
     [[nodiscard]] bool is_transmitting() const noexcept override { return tx_in_progress_; }
 
     [[nodiscard]] LoRaError start_receive(bool continuous) noexcept override;
-    [[nodiscard]] LoRaError read_packet(std::uint8_t* buf,
-                                        std::size_t max_len,
+    [[nodiscard]] LoRaError read_packet(std::uint8_t* buf, std::size_t max_len,
                                         std::size_t& out_len) noexcept override;
 
     [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept override;
@@ -49,7 +47,9 @@ public:
     [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept override;
     [[nodiscard]] LoRaError start_continuous_wave() noexcept override;
 
-    [[nodiscard]] std::int16_t packet_rssi() const noexcept override { return stats_.last_rssi_dbm; }
+    [[nodiscard]] std::int16_t packet_rssi() const noexcept override {
+        return stats_.last_rssi_dbm;
+    }
     [[nodiscard]] float packet_snr() const noexcept override {
         return static_cast<float>(stats_.last_snr_q4) / 4.0f;
     }
@@ -68,23 +68,23 @@ public:
 
 private:
     hal::ISpiDevice& spi_;
-    LoRaConfig       cfg_{};
-    RadioStats       stats_{};
-    EventCallback    event_cb_{};
+    LoRaConfig cfg_{};
+    RadioStats stats_{};
+    EventCallback event_cb_{};
 
     std::uint8_t chip_version_ = 0;
-    bool         initialized_  = false;
-    bool         tx_in_progress_ = false;
+    bool initialized_ = false;
+    bool tx_in_progress_ = false;
     std::uint32_t tx_deadline_ms_ = 0;
-    std::uint32_t rx_silence_deadline_ms_ = 0;  // 0 = disarmed
-    std::uint8_t  op_mode_shadow_ = 0;
-    bool          cad_auto_rx_ = false;
+    std::uint32_t rx_silence_deadline_ms_ = 0; // 0 = disarmed
+    std::uint8_t op_mode_shadow_ = 0;
+    bool cad_auto_rx_ = false;
 
     // IRQ ring buffer (filled by handle_interrupt, drained by process_events)
     static constexpr std::uint8_t kIrqQueueSize = 16;
-    volatile std::uint8_t  irq_queue_[kIrqQueueSize]{};
-    volatile std::uint8_t  irq_head_ = 0;
-    volatile std::uint8_t  irq_tail_ = 0;
+    volatile std::uint8_t irq_queue_[kIrqQueueSize]{};
+    volatile std::uint8_t irq_head_ = 0;
+    volatile std::uint8_t irq_tail_ = 0;
 
     [[nodiscard]] LoRaError set_op_mode(std::uint8_t mode) noexcept;
     [[nodiscard]] LoRaError apply_init_sequence(const LoRaConfig& cfg) noexcept;
@@ -102,4 +102,4 @@ private:
     void emit(RadioEvent ev, int param) noexcept;
 };
 
-}  // namespace loradriver::chips
+} // namespace loradriver::chips

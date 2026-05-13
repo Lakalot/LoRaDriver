@@ -20,7 +20,9 @@ static LoRaConfig MakeValidSx1276() {
     c.tx_power_dbm = 14;
     c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
@@ -141,20 +143,25 @@ bool TestRejectsMissingPins() {
     LoRaConfig c = MakeValidSx1276();
     c.pin_ss = -1;
     LD_EXPECT_EQ(c.validate(), LoRaError::InvalidConfig);
-    c.pin_ss = 5; c.pin_reset = -1;
+    c.pin_ss = 5;
+    c.pin_reset = -1;
     LD_EXPECT_EQ(c.validate(), LoRaError::InvalidConfig);
-    c.pin_reset = 14; c.pin_dio0 = -1;
+    c.pin_reset = 14;
+    c.pin_dio0 = -1;
     LD_EXPECT_EQ(c.validate(), LoRaError::InvalidConfig);
     return true;
 }
 
 bool TestLdroRequiredForSlowSymbols() {
     LoRaConfig c = MakeValidSx1276();
-    c.spreading_factor = 12; c.bandwidth_hz = 125'000u;
+    c.spreading_factor = 12;
+    c.bandwidth_hz = 125'000u;
     LD_EXPECT(c.ldro_required());
-    c.spreading_factor = 11; c.bandwidth_hz = 125'000u;
+    c.spreading_factor = 11;
+    c.bandwidth_hz = 125'000u;
     LD_EXPECT(c.ldro_required());
-    c.spreading_factor = 7;  c.bandwidth_hz = 125'000u;
+    c.spreading_factor = 7;
+    c.bandwidth_hz = 125'000u;
     LD_EXPECT(!c.ldro_required());
     return true;
 }

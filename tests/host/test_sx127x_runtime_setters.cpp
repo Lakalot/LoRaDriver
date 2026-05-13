@@ -26,12 +26,15 @@ static LoRaConfig MakeCfg() {
     c.tx_power_dbm = 14;
     c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
 bool TestSetFrequencyChangesFrfRegisters() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     spi.clear_writes();
     LD_EXPECT_EQ(drv.set_frequency(915'000'000u), LoRaError::OK);
@@ -41,7 +44,8 @@ bool TestSetFrequencyChangesFrfRegisters() {
 }
 
 bool TestSetSpreadingFactorRejectsOutOfRange() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_spreading_factor(5), LoRaError::InvalidConfig);
     LD_EXPECT_EQ(drv.set_spreading_factor(13), LoRaError::InvalidConfig);
@@ -49,23 +53,28 @@ bool TestSetSpreadingFactorRejectsOutOfRange() {
 }
 
 bool TestSetSpreadingFactorUpdatesModemConfig2() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_spreading_factor(11), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kModemConfig2) >> 4) & 0x0Fu), std::uint8_t{11});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kModemConfig2) >> 4) & 0x0Fu),
+                 std::uint8_t{11});
     return true;
 }
 
 bool TestSetBandwidthUpdatesModemConfig1() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_bandwidth(250'000u), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kModemConfig1) >> 4) & 0x0Fu), std::uint8_t{8});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kModemConfig1) >> 4) & 0x0Fu),
+                 std::uint8_t{8});
     return true;
 }
 
 bool TestSetTxPowerSwitchesPaDac() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_tx_power(20, PaOutput::PaBoost), LoRaError::OK);
     LD_EXPECT_EQ(spi.reg(reg::kPaDac), std::uint8_t{0x87});
@@ -75,7 +84,8 @@ bool TestSetTxPowerSwitchesPaDac() {
 }
 
 bool TestSettersRejectedBeforeBegin() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.set_frequency(868'000'000u), LoRaError::NotInitialized);
     LD_EXPECT_EQ(drv.set_spreading_factor(9), LoRaError::NotInitialized);
     LD_EXPECT_EQ(drv.set_bandwidth(125'000u), LoRaError::NotInitialized);
@@ -84,24 +94,27 @@ bool TestSettersRejectedBeforeBegin() {
 }
 
 bool TestSetStandbyAndSleep() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_sleep(), LoRaError::OK);
-    LD_EXPECT_EQ(spi.reg(reg::kOpMode), std::uint8_t{0x80});  // LoRaSleep
+    LD_EXPECT_EQ(spi.reg(reg::kOpMode), std::uint8_t{0x80}); // LoRaSleep
     LD_EXPECT_EQ(drv.set_standby(), LoRaError::OK);
-    LD_EXPECT_EQ(spi.reg(reg::kOpMode), std::uint8_t{0x81});  // LoRaStandby
+    LD_EXPECT_EQ(spi.reg(reg::kOpMode), std::uint8_t{0x81}); // LoRaStandby
     return true;
 }
 
 bool TestSetLnaGainRejectsOutOfRange() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_lna_gain(7), LoRaError::InvalidConfig);
     return true;
 }
 
 bool TestSetLnaGainZeroEnablesAgc() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_lna_gain(3), LoRaError::OK);
     LD_EXPECT_EQ(spi.reg(reg::kModemConfig3) & 0x04u, std::uint8_t{0});
@@ -112,36 +125,37 @@ bool TestSetLnaGainZeroEnablesAgc() {
 }
 
 bool TestSetLnaGainSpecificValueDisablesAgc() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_lna_gain(2), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kLna) >> 5) & 0x07u),
-                 std::uint8_t{2});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kLna) >> 5) & 0x07u), std::uint8_t{2});
     LD_EXPECT_EQ(spi.reg(reg::kModemConfig3) & 0x04u, std::uint8_t{0});
     return true;
 }
 
 bool TestSetOcpEnabledTogglesBit5() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     LD_EXPECT_EQ(drv.set_ocp_enabled(false), LoRaError::OK);
     LD_EXPECT_EQ(spi.reg(reg::kOcp) & 0x20u, std::uint8_t{0});
     LD_EXPECT_EQ(drv.set_ocp_enabled(true), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x20u),
-                 std::uint8_t{0x20});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x20u), std::uint8_t{0x20});
     return true;
 }
 
 bool TestSetOcpEnabledPreservesTrim() {
-    FakeSpiDevice spi; SX127xDriver drv(spi);
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
-    c.ocp_ma = 100;  // trim = (100-45)/5 = 11 = 0x0B
+    c.ocp_ma = 100; // trim = (100-45)/5 = 11 = 0x0B
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
     const std::uint8_t trim_initial = spi.reg(reg::kOcp) & 0x1Fu;
     LD_EXPECT_EQ(trim_initial, std::uint8_t{0x0B});
 
     LD_EXPECT_EQ(drv.set_ocp_enabled(false), LoRaError::OK);
-    LD_EXPECT_EQ(drv.set_ocp_enabled(true),  LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_ocp_enabled(true), LoRaError::OK);
 
     // After enable/disable cycle the trim bits must be unchanged.
     LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x1Fu), trim_initial);

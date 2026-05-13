@@ -13,8 +13,7 @@ namespace loradriver::hal {
 /// burst transfers. ~5-10x faster than byte-by-byte transfer on 255-byte FIFO.
 class Esp32SpiDevice : public ISpiDevice {
 public:
-    Esp32SpiDevice(SPIClass& bus, std::int8_t cs_pin,
-                   std::uint32_t clock_hz = 8'000'000u) noexcept
+    Esp32SpiDevice(SPIClass& bus, std::int8_t cs_pin, std::uint32_t clock_hz = 8'000'000u) noexcept
         : bus_(bus), cs_pin_(cs_pin), clock_hz_(clock_hz) {}
 
     [[nodiscard]] LoRaError begin() noexcept override {
@@ -23,9 +22,7 @@ public:
         return LoRaError::OK;
     }
 
-    [[nodiscard]] LoRaError transfer(std::uint8_t addr,
-                                     const std::uint8_t* tx,
-                                     std::uint8_t* rx,
+    [[nodiscard]] LoRaError transfer(std::uint8_t addr, const std::uint8_t* tx, std::uint8_t* rx,
                                      std::size_t len) noexcept override {
         bus_.beginTransaction(SPISettings(clock_hz_, MSBFIRST, SPI_MODE0));
         digitalWrite(cs_pin_, LOW);
@@ -54,6 +51,6 @@ private:
     std::uint32_t clock_hz_;
 };
 
-}  // namespace loradriver::hal
+} // namespace loradriver::hal
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif // ARDUINO_ARCH_ESP32

@@ -28,7 +28,9 @@ static LoRaConfig MakeCfg() {
     c.tx_power_dbm = 14;
     c.pa_output = PaOutput::PaBoost;
     c.ocp_ma = 100;
-    c.pin_ss = 5; c.pin_reset = 14; c.pin_dio0 = 26;
+    c.pin_ss = 5;
+    c.pin_reset = 14;
+    c.pin_dio0 = 26;
     return c;
 }
 
@@ -143,7 +145,8 @@ bool TestBeginClearsIrqFlags() {
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     bool saw_clear = false;
     for (const auto& w : spi.writes()) {
-        if (w.reg == reg::kIrqFlags && w.value == 0xFFu) saw_clear = true;
+        if (w.reg == reg::kIrqFlags && w.value == 0xFFu)
+            saw_clear = true;
     }
     LD_EXPECT(saw_clear);
     return true;
@@ -160,9 +163,7 @@ bool TestBeginRejectsSpiFailure() {
 // Fake that drops every write to RegOpMode (chip is dead but bus says OK).
 class DeadOpModeFakeSpi : public FakeSpiDevice {
 public:
-    [[nodiscard]] LoRaError transfer(std::uint8_t addr,
-                                     const std::uint8_t* tx,
-                                     std::uint8_t* rx,
+    [[nodiscard]] LoRaError transfer(std::uint8_t addr, const std::uint8_t* tx, std::uint8_t* rx,
                                      std::size_t len) noexcept override {
         const bool is_write = (addr & 0x80u) != 0u;
         const std::uint8_t r = addr & 0x7Fu;
@@ -204,8 +205,7 @@ bool TestTcxoEnabledSetsTcxoInputBit() {
     LoRaConfig c = MakeCfg();
     c.tcxo_enabled = true;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kTcxo) & 0x10u),
-                 std::uint8_t{0x10});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kTcxo) & 0x10u), std::uint8_t{0x10});
     return true;
 }
 
@@ -225,8 +225,7 @@ bool TestInvertIqWritesBothRegisters() {
     LoRaConfig c = MakeCfg();
     c.invert_iq = true;
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
-    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kInvertIq) & 0x40u),
-                 std::uint8_t{0x40});
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kInvertIq) & 0x40u), std::uint8_t{0x40});
     LD_EXPECT_EQ(spi.reg(reg::kInvertIq2), std::uint8_t{0x19});
     return true;
 }
@@ -247,7 +246,8 @@ bool TestBeginCalibratesRxImage() {
     LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
     bool saw_cal = false;
     for (const auto& w : spi.writes()) {
-        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u) saw_cal = true;
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u)
+            saw_cal = true;
     }
     LD_EXPECT(saw_cal);
     return true;
@@ -257,7 +257,7 @@ bool TestSymbolTimeoutUsesConfigValueDirectly() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
     LoRaConfig c = MakeCfg();
-    c.symbol_timeout = 0x140;  // 320, fits in 10 bits
+    c.symbol_timeout = 0x140; // 320, fits in 10 bits
     LD_EXPECT_EQ(drv.begin(c), LoRaError::OK);
     LD_EXPECT_EQ(spi.reg(reg::kSymbTimeoutLsb), std::uint8_t{0x40});
     LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig2) & 0x03u),
@@ -308,7 +308,7 @@ bool TestStandbyToTxVerifiesOpMode() {
     LoRaConfig c = MakeCfg();
     c.auto_reset = false;
     LD_EXPECT_EQ(drv_ok.begin(c), LoRaError::OK);
-    good.set_register(reg::kOpMode, 0x00);  // chip "died" — LoRa bit cleared
+    good.set_register(reg::kOpMode, 0x00); // chip "died" — LoRa bit cleared
     good.set_dead_after_writes(reg::kOpMode, 0);
     const std::uint8_t buf[2] = {0xAA, 0x55};
     LD_EXPECT_EQ(drv_ok.start_transmit(buf, 2, 1000), LoRaError::SpiVerifyMismatch);

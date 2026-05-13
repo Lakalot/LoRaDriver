@@ -28,14 +28,13 @@ bool TestStatsSnapshotByValue() {
 
 bool TestPacketSnrConversion() {
     LoRaPacket p{};
-    p.snr_q4 = -20;  // -5.0 dB
+    p.snr_q4 = -20; // -5.0 dB
     LD_EXPECT(p.snr_db() < -4.9f && p.snr_db() > -5.1f);
     return true;
 }
 
 bool TestEventEnumDistinct() {
-    LD_EXPECT(static_cast<int>(RadioEvent::TxDone)
-              != static_cast<int>(RadioEvent::RxDone));
+    LD_EXPECT(static_cast<int>(RadioEvent::TxDone) != static_cast<int>(RadioEvent::RxDone));
     return true;
 }
 

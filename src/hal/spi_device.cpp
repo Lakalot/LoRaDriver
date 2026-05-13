@@ -14,18 +14,17 @@ LoRaError ISpiDevice::read_register(std::uint8_t reg, std::uint8_t& out) noexcep
     return transfer(static_cast<std::uint8_t>(reg & 0x7F), nullptr, &out, 1);
 }
 
-LoRaError ISpiDevice::burst_write(std::uint8_t reg,
-                                  const std::uint8_t* buf,
+LoRaError ISpiDevice::burst_write(std::uint8_t reg, const std::uint8_t* buf,
                                   std::size_t len) noexcept {
-    if (buf == nullptr || len == 0u) return LoRaError::NullArgument;
+    if (buf == nullptr || len == 0u)
+        return LoRaError::NullArgument;
     return transfer(static_cast<std::uint8_t>(reg | kWriteBit), buf, nullptr, len);
 }
 
-LoRaError ISpiDevice::burst_read(std::uint8_t reg,
-                                 std::uint8_t* buf,
-                                 std::size_t len) noexcept {
-    if (buf == nullptr || len == 0u) return LoRaError::NullArgument;
+LoRaError ISpiDevice::burst_read(std::uint8_t reg, std::uint8_t* buf, std::size_t len) noexcept {
+    if (buf == nullptr || len == 0u)
+        return LoRaError::NullArgument;
     return transfer(static_cast<std::uint8_t>(reg & 0x7F), nullptr, buf, len);
 }
 
-}  // namespace loradriver::hal
+} // namespace loradriver::hal

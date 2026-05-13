@@ -25,10 +25,10 @@ public:
         Cad,
     };
 
-    using PacketCallback  = std::function<void(const LoRaPacket&, const std::uint8_t*, std::size_t)>;
-    using EventCallback   = std::function<void(RadioEvent, int)>;
-    using TxDoneCallback  = std::function<void()>;
-    using HeaderCallback  = std::function<void()>;
+    using PacketCallback = std::function<void(const LoRaPacket&, const std::uint8_t*, std::size_t)>;
+    using EventCallback = std::function<void(RadioEvent, int)>;
+    using TxDoneCallback = std::function<void()>;
+    using HeaderCallback = std::function<void()>;
 
     explicit LoRaTransceiver(IRadioDriver& driver) noexcept;
     ~LoRaTransceiver();
@@ -56,28 +56,33 @@ public:
 
     void poll() noexcept;
 
-    [[nodiscard]] State        state() const noexcept { return state_; }
+    [[nodiscard]] State state() const noexcept { return state_; }
     [[nodiscard]] std::int16_t rssi() const noexcept { return driver_.packet_rssi(); }
-    [[nodiscard]] float        snr() const noexcept  { return driver_.packet_snr(); }
-    [[nodiscard]] std::int32_t frequency_error_hz() const noexcept { return driver_.frequency_error_hz(); }
-    [[nodiscard]] RadioStats   stats() const noexcept { return driver_.get_stats(); }
+    [[nodiscard]] float snr() const noexcept { return driver_.packet_snr(); }
+    [[nodiscard]] std::int32_t frequency_error_hz() const noexcept {
+        return driver_.frequency_error_hz();
+    }
+    [[nodiscard]] RadioStats stats() const noexcept { return driver_.get_stats(); }
     [[nodiscard]] std::uint8_t chip_version() const noexcept { return driver_.chip_version(); }
 
     /// Heartbeat: cheap RegVersion read. Returns OK if chip still responds.
     [[nodiscard]] LoRaError check_alive() noexcept {
-        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        if (state_ == State::Uninit)
+            return LoRaError::NotInitialized;
         return driver_.check_alive();
     }
 
     /// Runtime LNA gain (0 = AGC, 1..6 = manual).
     [[nodiscard]] LoRaError set_lna_gain(std::uint8_t gain) noexcept {
-        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        if (state_ == State::Uninit)
+            return LoRaError::NotInitialized;
         return driver_.set_lna_gain(gain);
     }
 
     /// Enable or disable over-current protection at runtime.
     [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept {
-        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        if (state_ == State::Uninit)
+            return LoRaError::NotInitialized;
         return driver_.set_ocp_enabled(enabled);
     }
 
@@ -85,16 +90,16 @@ public:
     void handle_interrupt() noexcept { driver_.handle_interrupt(); }
 
 private:
-    IRadioDriver&    driver_;
-    State            state_ = State::Uninit;
-    PacketCallback   packet_cb_{};
-    EventCallback    event_cb_{};
-    TxDoneCallback   tx_done_cb_{};
-    HeaderCallback   header_cb_{};
-    bool             rx_continuous_ = false;
-    std::uint8_t     rx_buf_[255]{};
+    IRadioDriver& driver_;
+    State state_ = State::Uninit;
+    PacketCallback packet_cb_{};
+    EventCallback event_cb_{};
+    TxDoneCallback tx_done_cb_{};
+    HeaderCallback header_cb_{};
+    bool rx_continuous_ = false;
+    std::uint8_t rx_buf_[255]{};
 
     void on_driver_event(RadioEvent ev, int param) noexcept;
 };
 
-}  // namespace loradriver
+} // namespace loradriver

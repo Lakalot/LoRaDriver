@@ -29,14 +29,12 @@ public:
     [[nodiscard]] virtual LoRaError set_sleep() noexcept = 0;
     [[nodiscard]] virtual LoRaError set_standby() noexcept = 0;
 
-    [[nodiscard]] virtual LoRaError start_transmit(const std::uint8_t* data,
-                                                   std::size_t len,
+    [[nodiscard]] virtual LoRaError start_transmit(const std::uint8_t* data, std::size_t len,
                                                    std::uint32_t timeout_ms = 2000) noexcept = 0;
     [[nodiscard]] virtual bool is_transmitting() const noexcept = 0;
 
     [[nodiscard]] virtual LoRaError start_receive(bool continuous = true) noexcept = 0;
-    [[nodiscard]] virtual LoRaError read_packet(std::uint8_t* buf,
-                                                std::size_t max_len,
+    [[nodiscard]] virtual LoRaError read_packet(std::uint8_t* buf, std::size_t max_len,
                                                 std::size_t& out_len) noexcept = 0;
 
     [[nodiscard]] virtual LoRaError start_cad(bool auto_rx = false) noexcept = 0;
@@ -72,4 +70,4 @@ protected:
     IRadioDriver& operator=(const IRadioDriver&) = delete;
 };
 
-}  // namespace loradriver
+} // namespace loradriver

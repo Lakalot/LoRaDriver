@@ -27,7 +27,8 @@ bool TestBurstWriteThenRead() {
     LD_EXPECT_EQ(s.burst_write(0x20, in, 4), LoRaError::OK);
     std::uint8_t out[4] = {};
     LD_EXPECT_EQ(s.burst_read(0x20, out, 4), LoRaError::OK);
-    for (int i = 0; i < 4; ++i) LD_EXPECT_EQ(out[i], in[i]);
+    for (int i = 0; i < 4; ++i)
+        LD_EXPECT_EQ(out[i], in[i]);
     return true;
 }
 
