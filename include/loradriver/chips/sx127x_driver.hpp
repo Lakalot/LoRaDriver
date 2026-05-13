@@ -87,6 +87,7 @@ private:
     [[nodiscard]] LoRaError apply_ocp(std::uint8_t ma) noexcept;
     [[nodiscard]] LoRaError apply_frequency(std::uint32_t hz) noexcept;
     [[nodiscard]] LoRaError apply_errata(std::uint32_t bw_hz, std::uint32_t freq_hz) noexcept;
+    [[nodiscard]] LoRaError run_rx_image_calibration() noexcept;
 
     [[nodiscard]] static std::uint32_t now_ms() noexcept;
     [[nodiscard]] static std::uint8_t bw_code(std::uint32_t hz) noexcept;

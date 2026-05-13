@@ -196,8 +196,9 @@ LoRaError SX127xDriver::apply_init_sequence(const LoRaConfig& cfg) noexcept {
     if ((e = spi_.read_register(reg::kVersion, chip_version_)) != LoRaError::OK) return e;
     if (chip_version_ != kVersionExpected) return LoRaError::UnsupportedChip;
 
-    // FSK sleep → LoRa sleep (precondition for switching mode bit)
+    // FSK sleep → image calibration → LoRa sleep
     if ((e = set_op_mode(opmode::kFskSleep))  != LoRaError::OK) return e;
+    if ((e = run_rx_image_calibration()) != LoRaError::OK) return e;
     if ((e = set_op_mode(opmode::kLoRaSleep)) != LoRaError::OK) return e;
 
     // Verify LoRa bit (read-back of OpMode)
@@ -484,6 +485,27 @@ void SX127xDriver::process_events() noexcept {
     const std::uint8_t backlog = static_cast<std::uint8_t>(
         (irq_head_ + kIrqQueueSize - irq_tail_) % kIrqQueueSize);
     if (backlog > stats_.max_irq_backlog) stats_.max_irq_backlog = backlog;
+}
+
+LoRaError SX127xDriver::run_rx_image_calibration() noexcept {
+    // Datasheet §4.2.3.8: image calibration must be done in FSK mode.
+    // We're called between FSK sleep and LoRa sleep in apply_init_sequence,
+    // so the chip is already in FSK access mode.
+    LoRaError e;
+    std::uint8_t v = 0;
+    if ((e = spi_.read_register(reg::kImageCal, v)) != LoRaError::OK) return e;
+    v |= 0x40u;  // ImageCalStart bit
+    if ((e = spi_.write_register(reg::kImageCal, v)) != LoRaError::OK) return e;
+
+    // Wait for ImageCalRunning to clear (bit 5). Bounded poll, ~1 ms.
+    for (int i = 0; i < 100; ++i) {
+        if (spi_.read_register(reg::kImageCal, v) != LoRaError::OK) return LoRaError::SpiFailure;
+        if ((v & 0x20u) == 0u) return LoRaError::OK;
+#ifdef ARDUINO
+        delayMicroseconds(10);
+#endif
+    }
+    return LoRaError::OK;  // best-effort
 }
 
 LoRaError SX127xDriver::check_alive() noexcept {

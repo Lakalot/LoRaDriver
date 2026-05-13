@@ -183,6 +183,18 @@ bool TestBeginDetectsDeadOpModeRegister() {
     return true;
 }
 
+bool TestBeginCalibratesRxImage() {
+    FakeSpiDevice spi;
+    SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    bool saw_cal = false;
+    for (const auto& w : spi.writes()) {
+        if (w.reg == reg::kImageCal && (w.value & 0x40u) != 0u) saw_cal = true;
+    }
+    LD_EXPECT(saw_cal);
+    return true;
+}
+
 bool TestSymbolTimeoutUsesConfigValueDirectly() {
     FakeSpiDevice spi;
     SX127xDriver drv(spi);
@@ -284,6 +296,7 @@ int main() {
     LD_RUN(TestBeginSkipsResetWhenAutoResetFalse);
     LD_RUN(TestBeginDetectsDeadOpModeRegister);
     LD_RUN(TestStandbyToTxVerifiesOpMode);
+    LD_RUN(TestBeginCalibratesRxImage);
     LD_RUN(TestSymbolTimeoutUsesConfigValueDirectly);
     LD_RUN(TestInitSetsTxBaseTo0AndRxBaseTo128);
     LD_RUN(TestBeginSx1278At433MHzWritesCorrectFrf);
