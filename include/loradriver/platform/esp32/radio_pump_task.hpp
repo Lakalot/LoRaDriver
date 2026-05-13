@@ -39,10 +39,12 @@ public:
                UBaseType_t priority = 2,
                std::uint32_t stack_words = 2048,
                BaseType_t core_id = 1,
-               std::uint8_t tx_queue_depth = 4) {
+               std::uint8_t tx_queue_depth = 4,
+               std::uint32_t stop_timeout_ms = 1000) {
         stop();
         trx_       = &trx;
         period_ms_ = (period_ms == 0u) ? 1u : period_ms;
+        stop_timeout_ms_ = stop_timeout_ms;
 
         if (!tx_queue_) {
             tx_queue_ = xQueueCreate(tx_queue_depth, sizeof(TxItem));
@@ -60,12 +62,14 @@ public:
         if (t == nullptr) return;
         // Signal the task to exit; it will vTaskDelete(nullptr) itself.
         stop_requested_ = true;
-        // Nudge in case task is blocked in ulTaskNotifyTake.
-        BaseType_t woken = pdFALSE;
-        vTaskNotifyGiveFromISR(t, &woken);
-        // Wait up to ~600 ms (500 ms send timeout + 100 ms slack).
-        for (int i = 0; i < 60 && task_ != nullptr; ++i) {
-            vTaskDelay(pdMS_TO_TICKS(10));
+        // Nudge in case task is blocked in ulTaskNotifyTake. Non-ISR context
+        // here — xTaskNotifyGive is the correct API (not the FromISR variant).
+        xTaskNotifyGive(t);
+        // Wait up to stop_timeout_ms_ for the task to drain its cycle.
+        const std::uint32_t step_ms = 10;
+        const std::uint32_t iters = (stop_timeout_ms_ + step_ms - 1) / step_ms;
+        for (std::uint32_t i = 0; i < iters && task_ != nullptr; ++i) {
+            vTaskDelay(pdMS_TO_TICKS(step_ms));
         }
         if (task_ != nullptr) {
             // Last-resort kill if the task didn't honour the request.
@@ -170,6 +174,7 @@ private:
     LoRaTransceiver*      trx_        = nullptr;
     volatile bool         stop_requested_ = false;
     std::uint32_t         period_ms_  = 2;
+    std::uint32_t         stop_timeout_ms_ = 1000;  // total budget for cooperative stop
     QueueHandle_t         tx_queue_   = nullptr;
     volatile bool         tx_pending_ = false;
     mutable portMUX_TYPE  mux_        = portMUX_INITIALIZER_UNLOCKED;
