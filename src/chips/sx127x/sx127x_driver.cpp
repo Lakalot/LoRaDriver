@@ -279,8 +279,29 @@ LoRaError SX127xDriver::set_bandwidth(std::uint32_t hz) noexcept {
 
 // --- TX / RX / CAD / IRQ stubs — implemented in Tasks 3.5–3.7 ---
 
-LoRaError SX127xDriver::start_transmit(const std::uint8_t*, std::size_t, std::uint32_t) noexcept {
-    return LoRaError::InvalidState;
+LoRaError SX127xDriver::start_transmit(const std::uint8_t* data,
+                                       std::size_t len,
+                                       std::uint32_t timeout_ms) noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    if (data == nullptr) return LoRaError::NullArgument;
+    if (len == 0u) return LoRaError::InvalidConfig;
+    if (len > 255u) return LoRaError::TxBufferTooLarge;
+
+    LoRaError e;
+    if ((e = set_op_mode(opmode::kLoRaStandby)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoTxBaseAddr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kFifoAddrPtr, 0)) != LoRaError::OK) return e;
+    if ((e = spi_.burst_write(reg::kFifo, data, len)) != LoRaError::OK) return e;
+    if ((e = spi_.write_register(reg::kPayloadLength, static_cast<std::uint8_t>(len))) != LoRaError::OK) return e;
+
+    // DIO0 = TxDone before entering TX mode
+    if ((e = spi_.write_register(reg::kDioMapping1, dio::kDio0TxDone)) != LoRaError::OK) return e;
+
+    if ((e = set_op_mode(opmode::kLoRaTx)) != LoRaError::OK) return e;
+
+    tx_in_progress_ = true;
+    tx_deadline_ms_ = now_ms() + timeout_ms;
+    return LoRaError::OK;
 }
 
 LoRaError SX127xDriver::start_receive(bool) noexcept {
