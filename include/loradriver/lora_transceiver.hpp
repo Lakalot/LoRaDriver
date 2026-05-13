@@ -67,6 +67,18 @@ public:
         return driver_.check_alive();
     }
 
+    /// Runtime LNA gain (0 = AGC, 1..6 = manual).
+    [[nodiscard]] LoRaError set_lna_gain(std::uint8_t gain) noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.set_lna_gain(gain);
+    }
+
+    /// Enable or disable over-current protection at runtime.
+    [[nodiscard]] LoRaError set_ocp_enabled(bool enabled) noexcept {
+        if (state_ == State::Uninit) return LoRaError::NotInitialized;
+        return driver_.set_ocp_enabled(enabled);
+    }
+
     /// Forwarded to the underlying driver (use from ISR shim).
     void handle_interrupt() noexcept { driver_.handle_interrupt(); }
 

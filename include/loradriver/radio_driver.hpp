@@ -43,6 +43,10 @@ public:
     [[nodiscard]] virtual LoRaError set_tx_power(std::int8_t dbm, PaOutput out) noexcept = 0;
     [[nodiscard]] virtual LoRaError set_spreading_factor(std::uint8_t sf) noexcept = 0;
     [[nodiscard]] virtual LoRaError set_bandwidth(std::uint32_t hz) noexcept = 0;
+    /// Set LNA gain. gain=0 → AGC on; gain=1..6 → AGC off, LnaGain=G1..G6.
+    [[nodiscard]] virtual LoRaError set_lna_gain(std::uint8_t gain) noexcept = 0;
+    /// Enable or disable OverCurrent Protection.
+    [[nodiscard]] virtual LoRaError set_ocp_enabled(bool enabled) noexcept = 0;
 
     [[nodiscard]] virtual std::int16_t packet_rssi() const noexcept = 0;
     [[nodiscard]] virtual float packet_snr() const noexcept = 0;

@@ -93,6 +93,45 @@ bool TestSetStandbyAndSleep() {
     return true;
 }
 
+bool TestSetLnaGainRejectsOutOfRange() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_lna_gain(7), LoRaError::InvalidConfig);
+    return true;
+}
+
+bool TestSetLnaGainZeroEnablesAgc() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_lna_gain(3), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kModemConfig3) & 0x04u, std::uint8_t{0});
+    LD_EXPECT_EQ(drv.set_lna_gain(0), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kModemConfig3) & 0x04u),
+                 std::uint8_t{0x04});
+    return true;
+}
+
+bool TestSetLnaGainSpecificValueDisablesAgc() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_lna_gain(2), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>((spi.reg(reg::kLna) >> 5) & 0x07u),
+                 std::uint8_t{2});
+    LD_EXPECT_EQ(spi.reg(reg::kModemConfig3) & 0x04u, std::uint8_t{0});
+    return true;
+}
+
+bool TestSetOcpEnabledTogglesBit5() {
+    FakeSpiDevice spi; SX127xDriver drv(spi);
+    LD_EXPECT_EQ(drv.begin(MakeCfg()), LoRaError::OK);
+    LD_EXPECT_EQ(drv.set_ocp_enabled(false), LoRaError::OK);
+    LD_EXPECT_EQ(spi.reg(reg::kOcp) & 0x20u, std::uint8_t{0});
+    LD_EXPECT_EQ(drv.set_ocp_enabled(true), LoRaError::OK);
+    LD_EXPECT_EQ(static_cast<std::uint8_t>(spi.reg(reg::kOcp) & 0x20u),
+                 std::uint8_t{0x20});
+    return true;
+}
+
 int main() {
     LD_RUN(TestSetFrequencyChangesFrfRegisters);
     LD_RUN(TestSetSpreadingFactorRejectsOutOfRange);
@@ -101,5 +140,9 @@ int main() {
     LD_RUN(TestSetTxPowerSwitchesPaDac);
     LD_RUN(TestSettersRejectedBeforeBegin);
     LD_RUN(TestSetStandbyAndSleep);
+    LD_RUN(TestSetLnaGainRejectsOutOfRange);
+    LD_RUN(TestSetLnaGainZeroEnablesAgc);
+    LD_RUN(TestSetLnaGainSpecificValueDisablesAgc);
+    LD_RUN(TestSetOcpEnabledTogglesBit5);
     return loradriver::test::report();
 }

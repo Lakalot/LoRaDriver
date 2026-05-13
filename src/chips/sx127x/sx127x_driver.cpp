@@ -330,6 +330,37 @@ LoRaError SX127xDriver::set_bandwidth(std::uint32_t hz) noexcept {
     return apply_errata(cfg_.bandwidth_hz, cfg_.frequency_hz);
 }
 
+LoRaError SX127xDriver::set_lna_gain(std::uint8_t gain) noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    if (gain > 6u) return LoRaError::InvalidConfig;
+    if (gain == 0u) {
+        // AGC on, ModemConfig3 bit 2 set
+        std::uint8_t mc3 = 0;
+        const LoRaError e1 = spi_.read_register(reg::kModemConfig3, mc3);
+        if (e1 != LoRaError::OK) return e1;
+        mc3 |= 0x04u;
+        return spi_.write_register(reg::kModemConfig3, mc3);
+    }
+    // AGC off + RegLna LnaGain field
+    std::uint8_t mc3 = 0;
+    if (spi_.read_register(reg::kModemConfig3, mc3) != LoRaError::OK) return LoRaError::SpiFailure;
+    mc3 &= ~0x04u;
+    const LoRaError e2 = spi_.write_register(reg::kModemConfig3, mc3);
+    if (e2 != LoRaError::OK) return e2;
+    const std::uint8_t lna = static_cast<std::uint8_t>(
+        (gain << 5) | (cfg_.lna_boost_rx ? 0x03u : 0x00u));
+    return spi_.write_register(reg::kLna, lna);
+}
+
+LoRaError SX127xDriver::set_ocp_enabled(bool enabled) noexcept {
+    if (!initialized_) return LoRaError::NotInitialized;
+    std::uint8_t v = 0;
+    LoRaError e = spi_.read_register(reg::kOcp, v);
+    if (e != LoRaError::OK) return e;
+    if (enabled) v |= 0x20u; else v &= ~0x20u;
+    return spi_.write_register(reg::kOcp, v);
+}
+
 // --- TX / RX / CAD / IRQ stubs — implemented in Tasks 3.5–3.7 ---
 
 LoRaError SX127xDriver::start_transmit(const std::uint8_t* data,
