@@ -42,7 +42,8 @@ jobs:
       - name: Library compile check via examples (pio ci)
         run: |
           for ex in examples/BasicSender examples/BasicReceiver \
-                   examples/Esp32WithPumpTask examples/MultiInstance; do
+                   examples/Esp32Async examples/MultiInstance \
+                   examples/AdvancedDirectDi; do
             echo "=== Compiling $ex ==="
             python -m platformio ci "$ex" \
               --board=esp32dev \

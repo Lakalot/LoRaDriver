@@ -32,8 +32,9 @@ jobs:
           sketch-paths: |
             - examples/BasicSender
             - examples/BasicReceiver
-            - examples/Esp32WithPumpTask
+            - examples/Esp32Async
             - examples/MultiInstance
+            - examples/AdvancedDirectDi
           enable-deltas-report: false
           verbose: true
           cli-compile-flags: |

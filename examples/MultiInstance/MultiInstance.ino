@@ -1,5 +1,10 @@
 // Multi-instance example: two SX1276 modules on independent SPI buses.
 // On ESP32, VSPI (default SPI) + HSPI = two hardware SPI buses.
+//
+// This example deliberately uses the direct DI API rather than the
+// loradriver::lora facade. The facade is single-instance (one global
+// LoRa per binary); multi-instance setups need two distinct object trees
+// (spi/drv/trx pairs). The direct API supports that natively.
 #include <Arduino.h>
 #include <SPI.h>
 
