@@ -198,6 +198,9 @@ bool TestPresetEsp32Sx1278Has433Mhz() {
     LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1278);
     LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{433'920'000u});
     LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
+    LD_EXPECT_EQ(cfg.pin_ss, std::int8_t{5});
+    LD_EXPECT_EQ(cfg.pin_reset, std::int8_t{14});
+    LD_EXPECT_EQ(cfg.pin_dio0, std::int8_t{26});
     return true;
 }
 
@@ -206,6 +209,8 @@ bool TestPresetArduinoSx1276Has868Mhz() {
     LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1276);
     LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{868'000'000u});
     LD_EXPECT_EQ(cfg.pin_ss, std::int8_t{10});
+    LD_EXPECT_EQ(cfg.pin_reset, std::int8_t{9});
+    LD_EXPECT_EQ(cfg.pin_dio0, std::int8_t{2});
     LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
     return true;
 }
@@ -214,6 +219,9 @@ bool TestPresetArduinoSx1278Has433Mhz() {
     const auto cfg = loradriver::LoRaConfig::arduino_sx1278_433mhz(10, 9, 2);
     LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1278);
     LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{433'920'000u});
+    LD_EXPECT_EQ(cfg.pin_ss, std::int8_t{10});
+    LD_EXPECT_EQ(cfg.pin_reset, std::int8_t{9});
+    LD_EXPECT_EQ(cfg.pin_dio0, std::int8_t{2});
     LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
     return true;
 }

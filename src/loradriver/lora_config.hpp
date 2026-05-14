@@ -106,7 +106,8 @@ struct LoRaConfig {
     // ===== Named presets (constexpr, zero runtime cost) =====
 
     /// @brief ESP32 + SX1276 868 MHz Europe. SF9 / BW 125k / CR 4/5,
-    /// sync 0x12, PA_BOOST 14 dBm. Override fields after construction.
+    /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
+    /// PA_BOOST 14 dBm. Override fields after construction.
     [[nodiscard]] static constexpr LoRaConfig esp32_sx1276_868mhz(
         std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
         LoRaConfig c{};
@@ -124,7 +125,8 @@ struct LoRaConfig {
         return c;
     }
 
-    /// @brief ESP32 + SX1278 433 MHz. SF9 / BW 125k / CR 4/5, sync 0x12,
+    /// @brief ESP32 + SX1278 433 MHz. SF9 / BW 125k / CR 4/5,
+    /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
     /// PA_BOOST 14 dBm.
     [[nodiscard]] static constexpr LoRaConfig esp32_sx1278_433mhz(
         std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
@@ -143,7 +145,9 @@ struct LoRaConfig {
         return c;
     }
 
-    /// @brief Generic Arduino + SX1276 868 MHz.
+    /// @brief Generic Arduino + SX1276 868 MHz. SF9 / BW 125k / CR 4/5,
+    /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
+    /// PA_BOOST 14 dBm.
     [[nodiscard]] static constexpr LoRaConfig arduino_sx1276_868mhz(
         std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
         LoRaConfig c{};
@@ -161,7 +165,9 @@ struct LoRaConfig {
         return c;
     }
 
-    /// @brief Generic Arduino + SX1278 433 MHz.
+    /// @brief Generic Arduino + SX1278 433 MHz. SF9 / BW 125k / CR 4/5,
+    /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
+    /// PA_BOOST 14 dBm.
     [[nodiscard]] static constexpr LoRaConfig arduino_sx1278_433mhz(
         std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
         LoRaConfig c{};
