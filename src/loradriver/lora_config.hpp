@@ -109,8 +109,8 @@ struct LoRaConfig {
     /// @brief ESP32 + SX1276 868 MHz Europe. SF9 / BW 125k / CR 4/5,
     /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
     /// PA_BOOST 14 dBm. Override fields after construction.
-    [[nodiscard]] static constexpr LoRaConfig esp32_sx1276_868mhz(
-        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+    [[nodiscard]] static constexpr LoRaConfig esp32_sx1276_868mhz(std::int8_t cs, std::int8_t rst,
+                                                                  std::int8_t dio0) noexcept {
         LoRaConfig c{};
         c.chip = ChipModel::SX1276;
         c.frequency_hz = 868'000'000u;
@@ -129,8 +129,8 @@ struct LoRaConfig {
     /// @brief ESP32 + SX1278 433 MHz. SF9 / BW 125k / CR 4/5,
     /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
     /// PA_BOOST 14 dBm.
-    [[nodiscard]] static constexpr LoRaConfig esp32_sx1278_433mhz(
-        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+    [[nodiscard]] static constexpr LoRaConfig esp32_sx1278_433mhz(std::int8_t cs, std::int8_t rst,
+                                                                  std::int8_t dio0) noexcept {
         LoRaConfig c{};
         c.chip = ChipModel::SX1278;
         c.frequency_hz = 433'920'000u;
@@ -149,8 +149,8 @@ struct LoRaConfig {
     /// @brief Generic Arduino + SX1276 868 MHz. SF9 / BW 125k / CR 4/5,
     /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
     /// PA_BOOST 14 dBm.
-    [[nodiscard]] static constexpr LoRaConfig arduino_sx1276_868mhz(
-        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+    [[nodiscard]] static constexpr LoRaConfig arduino_sx1276_868mhz(std::int8_t cs, std::int8_t rst,
+                                                                    std::int8_t dio0) noexcept {
         LoRaConfig c{};
         c.chip = ChipModel::SX1276;
         c.frequency_hz = 868'000'000u;
@@ -169,8 +169,8 @@ struct LoRaConfig {
     /// @brief Generic Arduino + SX1278 433 MHz. SF9 / BW 125k / CR 4/5,
     /// sync 0x12 (private LoRa P2P; use 0x34 for LoRaWAN public),
     /// PA_BOOST 14 dBm.
-    [[nodiscard]] static constexpr LoRaConfig arduino_sx1278_433mhz(
-        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+    [[nodiscard]] static constexpr LoRaConfig arduino_sx1278_433mhz(std::int8_t cs, std::int8_t rst,
+                                                                    std::int8_t dio0) noexcept {
         LoRaConfig c{};
         c.chip = ChipModel::SX1278;
         c.frequency_hz = 433'920'000u;

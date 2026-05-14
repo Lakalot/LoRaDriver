@@ -27,13 +27,17 @@ void loradriver_isr_dio0_trampoline() {
 }
 #endif
 
-LoRa::~LoRa() { end(); }
+LoRa::~LoRa() {
+    end();
+}
 
 LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
-    if (running_) return LoRaError::AlreadyInitialized;
+    if (running_)
+        return LoRaError::AlreadyInitialized;
 
     const LoRaError vrc = cfg.validate();
-    if (vrc != LoRaError::OK) return vrc;
+    if (vrc != LoRaError::OK)
+        return vrc;
 
     instance_ = this;
 
@@ -56,17 +60,16 @@ LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
 
     // 4. Attach the DIO0 ISR if a pin is configured.
     if (cfg.pin_dio0 >= 0) {
-        attachInterrupt(digitalPinToInterrupt(cfg.pin_dio0),
-                        &loradriver_isr_dio0_trampoline, RISING);
+        attachInterrupt(digitalPinToInterrupt(cfg.pin_dio0), &loradriver_isr_dio0_trampoline,
+                        RISING);
         attached_dio0_ = cfg.pin_dio0;
     }
 
     // 5. ESP32: start the pump task if enabled.
 #ifdef ARDUINO_ARCH_ESP32
     if (cfg.facade_auto_pump) {
-        if (!pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority,
-                         cfg.pump.stack_words, cfg.pump.core_id,
-                         cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms)) {
+        if (!pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority, cfg.pump.stack_words,
+                         cfg.pump.core_id, cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms)) {
             // Pump failed to spawn (queue or task creation error).
             // Tear down what we set up so far.
             if (attached_dio0_ >= 0) {
@@ -105,7 +108,8 @@ LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
 void LoRa::end() noexcept {
     if (!running_) {
         // Still clear instance_ defensively in case begin() partially ran.
-        if (instance_ == this) instance_ = nullptr;
+        if (instance_ == this)
+            instance_ = nullptr;
         return;
     }
 
@@ -120,20 +124,21 @@ void LoRa::end() noexcept {
         attached_dio0_ = -1;
     }
 
-    if (instance_ == this) instance_ = nullptr;
+    if (instance_ == this)
+        instance_ = nullptr;
     running_ = false;
 }
 
 // === Send ===
 
-LoRaError LoRa::send(const std::uint8_t* data, std::size_t len,
-                     std::uint32_t timeout_ms) noexcept {
+LoRaError LoRa::send(const std::uint8_t* data, std::size_t len, std::uint32_t timeout_ms) noexcept {
     return trx_.send(data, len, timeout_ms);
 }
 
 #ifdef ARDUINO_ARCH_ESP32
 bool LoRa::send_async(const std::uint8_t* data, std::uint8_t len) noexcept {
-    if (!pump_.running()) return false;
+    if (!pump_.running())
+        return false;
     return pump_.enqueue_packet(data, len);
 }
 #endif
@@ -144,8 +149,12 @@ LoRaError LoRa::start_receive(bool continuous) noexcept {
     return trx_.start_receive(continuous);
 }
 
-LoRaError LoRa::set_standby() noexcept { return trx_.set_standby(); }
-LoRaError LoRa::set_sleep()   noexcept { return trx_.set_sleep(); }
+LoRaError LoRa::set_standby() noexcept {
+    return trx_.set_standby();
+}
+LoRaError LoRa::set_sleep() noexcept {
+    return trx_.set_sleep();
+}
 
 LoRaError LoRa::start_cad(bool auto_rx) noexcept {
     return trx_.start_cad(auto_rx);
@@ -157,13 +166,21 @@ LoRaError LoRa::start_cad(bool auto_rx) noexcept {
 
 // === Metrics ===
 
-std::int16_t LoRa::rssi() const noexcept { return trx_.rssi(); }
-float        LoRa::snr()  const noexcept { return trx_.snr(); }
+std::int16_t LoRa::rssi() const noexcept {
+    return trx_.rssi();
+}
+float LoRa::snr() const noexcept {
+    return trx_.snr();
+}
 std::int32_t LoRa::frequency_error_hz() const noexcept {
     return trx_.frequency_error_hz();
 }
-RadioStats LoRa::stats() const noexcept { return trx_.stats(); }
-LoRaError  LoRa::check_alive() noexcept { return trx_.check_alive(); }
+RadioStats LoRa::stats() const noexcept {
+    return trx_.stats();
+}
+LoRaError LoRa::check_alive() noexcept {
+    return trx_.check_alive();
+}
 
 #ifdef ARDUINO_ARCH_ESP32
 platform::esp32::RadioPumpTask::Metrics LoRa::pump_metrics() const noexcept {
@@ -193,12 +210,15 @@ LoRa* LoRa::instance_ = nullptr;
 
 // Destructor: on host, end() is a no-op (running_ stays false because
 // begin() is never called), so this is safe regardless of test_mode_.
-LoRa::~LoRa() { end(); }
+LoRa::~LoRa() {
+    end();
+}
 
 void LoRa::end() noexcept {
     // running_ is always false on host (no begin() body linked); nothing
     // to tear down. Keep instance_ housekeeping for symmetry.
-    if (instance_ == this) instance_ = nullptr;
+    if (instance_ == this)
+        instance_ = nullptr;
     running_ = false;
 }
 

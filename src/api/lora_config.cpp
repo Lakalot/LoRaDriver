@@ -101,9 +101,8 @@ LoRaError LoRaConfig::validate() const noexcept {
 
     // spi_pins: either all -1 (use board default SPI pins) or all set.
     {
-        const int set_count = (spi_pins.sck  >= 0 ? 1 : 0)
-                            + (spi_pins.miso >= 0 ? 1 : 0)
-                            + (spi_pins.mosi >= 0 ? 1 : 0);
+        const int set_count = (spi_pins.sck >= 0 ? 1 : 0) + (spi_pins.miso >= 0 ? 1 : 0) +
+                              (spi_pins.mosi >= 0 ? 1 : 0);
         if (set_count != 0 && set_count != 3) {
             return LoRaError::InvalidConfig;
         }

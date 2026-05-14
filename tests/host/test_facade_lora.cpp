@@ -85,9 +85,7 @@ bool TestFacadeOnReceiveRegistrationDoesNotCrash() {
     LD_EXPECT_EQ(trx.begin(MakeCfg()), LoRaError::OK);
 
     int hits = 0;
-    facade.on_receive([&hits](const LoRaPacket&, const std::uint8_t*, std::size_t) {
-        ++hits;
-    });
+    facade.on_receive([&hits](const LoRaPacket&, const std::uint8_t*, std::size_t) { ++hits; });
 
     // The escape hatch must still return the same trx instance.
     LD_EXPECT(&facade.transceiver() == &trx);
@@ -104,7 +102,10 @@ bool TestFacadePresetsAreConstexpr() {
     static_assert(c2.frequency_hz == 433'920'000u, "esp32_sx1278_433mhz freq");
     static_assert(c3.frequency_hz == 868'000'000u, "arduino_sx1276_868mhz freq");
     static_assert(c4.frequency_hz == 433'920'000u, "arduino_sx1278_433mhz freq");
-    (void)c1; (void)c2; (void)c3; (void)c4;
+    (void)c1;
+    (void)c2;
+    (void)c3;
+    (void)c4;
     return true;
 }
 

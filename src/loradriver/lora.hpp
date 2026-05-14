@@ -87,20 +87,20 @@ public:
 
     // === Metrics ===
     [[nodiscard]] std::int16_t rssi() const noexcept;
-    [[nodiscard]] float        snr()  const noexcept;
+    [[nodiscard]] float snr() const noexcept;
     [[nodiscard]] std::int32_t frequency_error_hz() const noexcept;
-    [[nodiscard]] RadioStats   stats() const noexcept;
-    [[nodiscard]] LoRaError    check_alive() noexcept;
+    [[nodiscard]] RadioStats stats() const noexcept;
+    [[nodiscard]] LoRaError check_alive() noexcept;
 
 #ifdef ARDUINO_ARCH_ESP32
-    [[nodiscard]] platform::esp32::RadioPumpTask::Metrics
-        pump_metrics() const noexcept;
+    [[nodiscard]] platform::esp32::RadioPumpTask::Metrics pump_metrics() const noexcept;
 #endif
 
     // === Escape hatches to the direct DI API ===
     [[nodiscard]] LoRaTransceiver& transceiver() noexcept {
 #ifdef LORADRIVER_FACADE_HOST_TEST
-        if (test_mode_) return *trx_ref_;
+        if (test_mode_)
+            return *trx_ref_;
 #endif
 #ifdef ARDUINO
         return trx_;
@@ -124,8 +124,7 @@ public:
     /// Host-test-only constructor. Wraps an externally-provided transceiver
     /// instead of constructing the Arduino-side SPI/driver/transceiver stack.
     /// Not compiled in production firmware builds.
-    explicit LoRa(LoRaTransceiver& injected) noexcept
-        : trx_ref_(&injected), test_mode_(true) {}
+    explicit LoRa(LoRaTransceiver& injected) noexcept : trx_ref_(&injected), test_mode_(true) {}
 #endif
 
 private:
@@ -135,21 +134,21 @@ private:
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-    hal::Esp32SpiDevice            spi_;
-    chips::SX127xDriver            drv_{spi_};
-    LoRaTransceiver                trx_{drv_};
+    hal::Esp32SpiDevice spi_;
+    chips::SX127xDriver drv_{spi_};
+    LoRaTransceiver trx_{drv_};
     platform::esp32::RadioPumpTask pump_;
 #elif defined(ARDUINO)
-    hal::ArduinoSpiDevice          spi_;
-    chips::SX127xDriver            drv_{spi_};
-    LoRaTransceiver                trx_{drv_};
+    hal::ArduinoSpiDevice spi_;
+    chips::SX127xDriver drv_{spi_};
+    LoRaTransceiver trx_{drv_};
 #else
     // Host build path: no Arduino runtime. The facade still has a usable
     // transceiver()/driver() pair via the test-only constructor (see
     // LORADRIVER_FACADE_HOST_TEST below, introduced in Task 6).
 #endif
 
-    bool        running_ = false;
+    bool running_ = false;
     std::int8_t attached_dio0_ = -1;
 
     static LoRa* instance_;
