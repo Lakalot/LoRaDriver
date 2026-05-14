@@ -24,19 +24,25 @@ ISR — the driver does not own the GPIO line.
 
 ## lib_deps (PlatformIO consumers)
 
-Local development (Windows path):
+Recommended (pin to a release tag — reproducible, no clone required):
+
 ```
-lib_deps = symlink://D:/DEV/C++/LoRaDriver
+lib_deps = https://github.com/Lakalot/LoRaDriver.git#v1.2.0
 ```
 
-Local development (Linux/macOS):
+Track the rolling main branch (gets fixes faster, but builds aren't
+reproducible):
+
 ```
-lib_deps = symlink:///home/you/dev/LoRaDriver
+lib_deps = https://github.com/Lakalot/LoRaDriver.git
 ```
 
-Production / shared:
+Local development against an in-progress checkout (optional — use only
+when actively editing the driver):
+
 ```
-lib_deps = https://github.com/Lakalot/LoRaDriver.git#v1.1.0
+lib_deps = symlink://D:/DEV/C++/LoRaDriver         ; Windows
+lib_deps = symlink:///home/you/dev/LoRaDriver      ; Linux / macOS
 ```
 
 ## Random bytes

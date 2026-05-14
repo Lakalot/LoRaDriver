@@ -53,7 +53,7 @@ jobs:
           VERSION="${TAG#v}"
           STAGE="LoRaDriver-${VERSION}"
           mkdir -p "dist/${STAGE}"
-          cp -r src include examples library.json library.properties \
+          cp -r src examples library.json library.properties \
                 README.md CHANGELOG.md CMakeLists.txt CMakePresets.json \
                 platformio.ini Doxyfile \
                 "dist/${STAGE}/"

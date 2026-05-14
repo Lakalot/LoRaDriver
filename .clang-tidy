@@ -7,5 +7,5 @@ Checks: >
   performance-*,
   readability-*
 WarningsAsErrors: ''
-HeaderFilterRegex: '^(include|src)/'
+HeaderFilterRegex: '^src/'
 FormatStyle: file

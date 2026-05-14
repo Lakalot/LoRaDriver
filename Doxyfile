@@ -1,7 +1,7 @@
 PROJECT_NAME           = "LoRaDriver"
 PROJECT_NUMBER         = "1.2.0"
 OUTPUT_DIRECTORY       = docs/_doxygen
-INPUT                  = include src
+INPUT                  = src
 RECURSIVE              = YES
 EXTRACT_ALL            = YES
 GENERATE_LATEX         = NO

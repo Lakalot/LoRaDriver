@@ -6,8 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 mapfile -t files < <(git ls-files \
-    'src/*.cpp' 'src/**/*.cpp' 'src/**/*.hpp' \
-    'include/loradriver/*.hpp' 'include/loradriver/**/*.hpp' \
+    'src/*.cpp' 'src/**/*.cpp' \
+    'src/loradriver/*.hpp' 'src/loradriver/**/*.hpp' \
     'tests/host/*.cpp' 'tests/host/*.hpp')
 
 if [[ ${#files[@]} -eq 0 ]]; then

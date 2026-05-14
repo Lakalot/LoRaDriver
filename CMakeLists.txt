@@ -12,8 +12,11 @@ if(LORADRIVER_SANITIZERS)
   if(MSVC)
     message(WARNING "Sanitizers requested but MSVC support is partial — skipping.")
   else()
-    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
-    add_link_options(-fsanitize=address,undefined)
+    # -fno-sanitize=vptr: the library is built with -fno-rtti so vtable
+    # typeinfo isn't emitted; UBSan's vptr check would link-fail otherwise.
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize=vptr
+                        -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address,undefined -fno-sanitize=vptr)
   endif()
 endif()
 
@@ -22,8 +25,6 @@ add_library(loradriver STATIC)
 
 target_include_directories(loradriver
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 

@@ -39,8 +39,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install platformio==6.1.19
 
-      - name: Library build (esp32dev)
-        run: python -m platformio run -e esp32dev
+      - name: Library compile check via examples (pio ci)
+        run: |
+          for ex in examples/BasicSender examples/BasicReceiver \
+                   examples/Esp32WithPumpTask examples/MultiInstance; do
+            echo "=== Compiling $ex ==="
+            python -m platformio ci "$ex" \
+              --board=esp32dev \
+              --lib=. \
+              --project-option="framework=arduino" \
+              --project-option="build_unflags=-std=gnu++11" \
+              --project-option="build_flags=-std=gnu++17"
+          done
 
       - name: Embedded smoke test build (no upload)
         run: python -m platformio test -e smoke --without-uploading --without-testing
