@@ -1,11 +1,11 @@
-// Direct DI example — same behaviour as examples/BasicSender, but
+// Direct DI example — same behaviour as examples/arduino/BasicSender, but
 // constructed by hand with Esp32SpiDevice / SX127xDriver / LoRaTransceiver.
 // Use this pattern when you want:
 //  * Custom HAL (alternative SPI implementation, FakeSpiDevice in tests)
 //  * Explicit lifetime control (e.g. shared SPI bus across libraries)
-//  * Multi-instance (see examples/MultiInstance for two radios)
+//  * Multi-instance (see examples/arduino/MultiInstance for two radios)
 //
-// For the common case, prefer the facade — see examples/BasicSender.
+// For the common case, prefer the facade — see examples/arduino/BasicSender.
 
 #include <Arduino.h>
 #include <SPI.h>

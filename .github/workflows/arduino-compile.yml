@@ -30,11 +30,11 @@ jobs:
             - source-path: ./
               name: LoRaDriver
           sketch-paths: |
-            - examples/BasicSender
-            - examples/BasicReceiver
-            - examples/Esp32Async
-            - examples/MultiInstance
-            - examples/AdvancedDirectDi
+            - examples/arduino/BasicSender
+            - examples/arduino/BasicReceiver
+            - examples/arduino/Esp32Async
+            - examples/arduino/MultiInstance
+            - examples/arduino/AdvancedDirectDi
           enable-deltas-report: false
           verbose: true
           cli-compile-flags: |

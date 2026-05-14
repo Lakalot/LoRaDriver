@@ -59,10 +59,10 @@ features the facade doesn't expose (`set_lna_gain`, `set_ocp_enabled`,
 
 - **Multi-instance**: two radios on one MCU need two distinct object
   trees. The facade is single-instance per binary. See
-  [`examples/MultiInstance`](../examples/MultiInstance/).
+  [`examples/arduino/MultiInstance`](../examples/arduino/MultiInstance/).
 - **Custom HAL**: if you need a non-Arduino SPI implementation or
   `FakeSpiDevice` for tests, instantiate the direct DI stack. See
-  [`examples/AdvancedDirectDi`](../examples/AdvancedDirectDi/).
+  [`examples/arduino/AdvancedDirectDi`](../examples/arduino/AdvancedDirectDi/).
 
 ## Class hierarchy
 

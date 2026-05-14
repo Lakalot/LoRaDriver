@@ -149,7 +149,7 @@ void loop() {
 }
 ```
 
-> Arduino IDE sketches: [`examples/`](examples/) — blocking sender, polling receiver, ESP32 async with auto-pump-task, multi-instance, advanced direct-DI.
+> Arduino IDE sketches: [`examples/arduino/`](examples/arduino/) — blocking sender, polling receiver, ESP32 async with auto-pump-task, multi-instance, advanced direct-DI.
 >
 > PlatformIO standalone projects: [`examples/pio/`](examples/pio/) — copy any subfolder verbatim, `pio run --target upload`, done. Three flavours: `sender/`, `receiver/`, `async-pump/`.
 >

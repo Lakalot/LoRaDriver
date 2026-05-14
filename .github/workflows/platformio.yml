@@ -41,9 +41,9 @@ jobs:
 
       - name: Library compile check via Arduino IDE examples (pio ci)
         run: |
-          for ex in examples/BasicSender examples/BasicReceiver \
-                   examples/Esp32Async examples/MultiInstance \
-                   examples/AdvancedDirectDi; do
+          for ex in examples/arduino/BasicSender examples/arduino/BasicReceiver \
+                   examples/arduino/Esp32Async examples/arduino/MultiInstance \
+                   examples/arduino/AdvancedDirectDi; do
             echo "=== Compiling $ex ==="
             python -m platformio ci "$ex" \
               --board=esp32dev \

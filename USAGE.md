@@ -124,8 +124,8 @@ need any of these, drop down to the direct DI API:
 
 | Need | Where to look |
 |---|---|
-| Two radios on one MCU | [`examples/MultiInstance`](examples/MultiInstance/) |
-| Custom HAL (non-Arduino SPI) | [`examples/AdvancedDirectDi`](examples/AdvancedDirectDi/) |
+| Two radios on one MCU | [`examples/arduino/MultiInstance`](examples/arduino/MultiInstance/) |
+| Custom HAL (non-Arduino SPI) | [`examples/arduino/AdvancedDirectDi`](examples/arduino/AdvancedDirectDi/) |
 | Host tests with `FakeSpiDevice` | [`tests/host/test_*.cpp`](tests/host/) |
 | Tighter lifetime control | Direct DI — instantiate `Esp32SpiDevice` etc. yourself |
 

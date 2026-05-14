@@ -10,8 +10,9 @@ no clone or symlink required.
 | [`receiver/`](receiver/) | Polling receiver. Callback-driven RX, no manual ISR. |
 | [`async-pump/`](async-pump/) | `lora.send_async()` + auto-pump-task. Non-blocking TX. |
 
-The `.ino` sketches under [`examples/`](..) are the Arduino IDE
-equivalents — same code, just the PlatformIO project scaffold around them.
+The `.ino` sketches under [`examples/arduino/`](../arduino/) are the
+Arduino IDE equivalents — same code, just the PlatformIO project
+scaffold around them.
 
 ## How to use one of these projects
 

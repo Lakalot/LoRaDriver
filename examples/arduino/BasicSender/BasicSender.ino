@@ -1,7 +1,7 @@
 // Minimal blocking sender — sends a packet every second.
 //
 // Uses the v1.3.0 facade API. For the explicit DI pattern, see
-// examples/AdvancedDirectDi/.
+// examples/arduino/AdvancedDirectDi/.
 
 #include <Arduino.h>
 #include <SPI.h>
