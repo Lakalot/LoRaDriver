@@ -22,6 +22,13 @@
 
 namespace loradriver {
 
+// Host-only unreachable-branch trap. Defined in lora_facade.cpp's #else
+// block as a std::abort() function. Declared here at namespace scope
+// (not block scope inside transceiver()) because MSVC mangles a
+// block-scope `extern` as a global-namespace symbol, which would link-
+// fail against the namespace-scope definition.
+[[noreturn]] LoRaTransceiver& loradriver_facade_no_arduino_transceiver();
+
 /// @brief High-level facade that wraps SPI HAL + chip driver + transceiver
 /// + (ESP32) FreeRTOS pump task in a single object.
 ///
@@ -101,7 +108,6 @@ public:
         // Host build with no test mode: unreachable in correct programs.
         // Defined in lora_facade.cpp as a std::abort() trap so accidental
         // use is loud rather than UB.
-        [[noreturn]] extern LoRaTransceiver& loradriver_facade_no_arduino_transceiver();
         return loradriver_facade_no_arduino_transceiver();
 #endif
     }

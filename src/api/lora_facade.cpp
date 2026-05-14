@@ -202,14 +202,15 @@ void LoRa::end() noexcept {
     running_ = false;
 }
 
-} // namespace loradriver
-
 // Host stub for the unreachable branch of LoRa::transceiver(). Reachable
 // only if the host-test ctor was NOT used (i.e. user accidentally
 // default-constructed a LoRa on host and called transceiver()). We abort
-// loudly rather than UB.
-[[noreturn]] loradriver::LoRaTransceiver& loradriver_facade_no_arduino_transceiver() {
+// loudly rather than UB. Defined inside namespace loradriver to match
+// the declaration in lora.hpp.
+[[noreturn]] LoRaTransceiver& loradriver_facade_no_arduino_transceiver() {
     std::abort();
 }
+
+} // namespace loradriver
 
 #endif // ARDUINO
