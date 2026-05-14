@@ -119,44 +119,37 @@ target_link_libraries(my_target PRIVATE loradriver)
 A minimal blocking sender on ESP32 + SX1276:
 
 ```cpp
+#include <Arduino.h>
 #include <SPI.h>
-#include <LoRaDriver.h>  // umbrella header; or include the namespaced
-                         // headers below directly (PlatformIO/CMake).
+#include <LoRaDriver.h>
 
 using namespace loradriver;
 
-hal::Esp32SpiDevice g_spi(SPI, /*cs=*/5);
-chips::SX127xDriver g_drv(g_spi);
-LoRaTransceiver     g_trx(g_drv);
-
 void setup() {
     Serial.begin(115200);
-    SPI.begin();
-
-    LoRaConfig cfg;
-    cfg.chip         = ChipModel::SX1276;
-    cfg.frequency_hz = 868'000'000u;
+    LoRaConfig cfg = LoRaConfig::esp32_sx1276_868mhz(/*cs=*/5, /*rst=*/14, /*dio0=*/26);
     cfg.tx_power_dbm = 14;
-    cfg.pin_ss       = 5;
-    cfg.pin_reset    = 14;
-    cfg.pin_dio0     = 26;
-
-    if (g_trx.begin(cfg) != LoRaError::OK) {
+    if (lora.begin(cfg) != LoRaError::OK) {
         Serial.println("LoRa init failed");
-        while (true) { delay(1000); }
+        while (true) delay(1000);
     }
+    lora.on_receive([](const LoRaPacket& m, const uint8_t* d, size_t n) {
+        Serial.printf("RX %u rssi=%d ", (unsigned)n, m.rssi_dbm);
+        Serial.write(d, n);
+        Serial.println();
+    });
 }
 
 void loop() {
-    const char msg[] = "hello";
-    (void)g_trx.send(reinterpret_cast<const uint8_t*>(msg), sizeof(msg) - 1);
-    delay(1000);
+    static uint32_t i = 0;
+    char msg[16];
+    int n = snprintf(msg, sizeof(msg), "tx %lu", (unsigned long)(i++));
+    (void)lora.send_async((const uint8_t*)msg, (uint8_t)n);
+    delay(2000);
 }
 ```
 
-See the [`examples/`](examples/) folder for a polling receiver, an
-ESP32 + FreeRTOS pump-task version, and a multi-instance (two modules
-on separate SPI buses) sketch.
+> See [`examples/`](examples/) for blocking sender, polling receiver, ESP32 async with auto-pump-task, multi-instance (two radios), and the advanced direct-DI pattern. Read [`USAGE.md`](USAGE.md) for a task-oriented guide.
 
 ## Documentation
 

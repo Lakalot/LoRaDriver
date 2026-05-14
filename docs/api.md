@@ -1,5 +1,69 @@
 # LoRaDriver Public API Reference
 
+## Facade API (`loradriver::lora`)
+
+For the common case (one SX127x module on ESP32 or generic Arduino), use
+the facade — a single global instance that wraps the SPI HAL, chip
+driver, transceiver, and pump task.
+
+```cpp
+#include <LoRaDriver.h>
+using namespace loradriver;
+
+LoRaConfig cfg = LoRaConfig::esp32_sx1276_868mhz(/*cs=*/5, /*rst=*/14, /*dio0=*/26);
+cfg.spi_pins = {18, 19, 22};  // custom MOSI on GPIO 22 (TTGO, SYNC-SIGNAL-LORA)
+lora.begin(cfg);
+
+lora.on_receive([](const LoRaPacket& m, const uint8_t* d, size_t n) { /* ... */ });
+lora.send_async(payload, len);
+```
+
+`lora.begin(cfg)` runs this sequence:
+
+1. `SPI.begin(sck, miso, mosi)` if any `cfg.spi_pins` field is set, else `SPI.begin()`.
+2. Binds the internal SPI device to `SPI` + `cfg.pin_ss` + `cfg.spi_frequency_hz`.
+3. Calls `transceiver().begin(cfg)` — validates config, pulses RST,
+   programs the chip registers.
+4. Attaches `attachInterrupt(cfg.pin_dio0, ...)` to a static IRAM trampoline.
+5. (ESP32) `pump.start(...)` with `cfg.pump.*` parameters.
+6. `transceiver().start_receive(true)`.
+
+Opt out of steps 5 and 6 via `cfg.facade_auto_pump = false` and
+`cfg.facade_auto_start_receive = false`.
+
+`lora.end()` is idempotent and tears down in reverse order.
+
+### Presets
+
+| Preset | Chip | Frequency | SF/BW/CR | TX power |
+|---|---|---|---|---|
+| `LoRaConfig::esp32_sx1276_868mhz(cs, rst, dio0)` | SX1276 | 868 MHz | 9 / 125k / 4/5 | 14 dBm |
+| `LoRaConfig::esp32_sx1278_433mhz(cs, rst, dio0)` | SX1278 | 433.92 MHz | 9 / 125k / 4/5 | 14 dBm |
+| `LoRaConfig::arduino_sx1276_868mhz(cs, rst, dio0)` | SX1276 | 868 MHz | 9 / 125k / 4/5 | 14 dBm |
+| `LoRaConfig::arduino_sx1278_433mhz(cs, rst, dio0)` | SX1278 | 433.92 MHz | 9 / 125k / 4/5 | 14 dBm |
+
+All four are `constexpr` — no runtime cost. Override fields after
+construction (`cfg.spreading_factor = 10;` etc).
+
+The sync word in every preset is `0x12` (private LoRa P2P). Use `0x34`
+for LoRaWAN public networks.
+
+### Escape hatches
+
+`lora.transceiver()`, `lora.driver()`, and (on ESP32) `lora.pump()`
+return references to the underlying objects. Use them when you need
+features the facade doesn't expose (`set_lna_gain`, `set_ocp_enabled`,
+`pump.metrics()`, etc).
+
+### When NOT to use the facade
+
+- **Multi-instance**: two radios on one MCU need two distinct object
+  trees. The facade is single-instance per binary. See
+  [`examples/MultiInstance`](../examples/MultiInstance/).
+- **Custom HAL**: if you need a non-Arduino SPI implementation or
+  `FakeSpiDevice` for tests, instantiate the direct DI stack. See
+  [`examples/AdvancedDirectDi`](../examples/AdvancedDirectDi/).
+
 ## Class hierarchy
 
 ```
