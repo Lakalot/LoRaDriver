@@ -68,6 +68,7 @@ struct LoRaConfig {
     /// MOSI/MISO/SCK like TTGO MOSI=27 or SYNC-SIGNAL-LORA MOSI=22).
     /// All -1 (default) → LoRa::begin() calls SPI.begin() with no arguments.
     /// Any pin >= 0 → LoRa::begin() calls SPI.begin(sck, miso, mosi).
+    /// All three pins must be set together, or all left at -1; mixing is rejected by validate().
     struct SpiPins {
         std::int8_t sck = -1;
         std::int8_t miso = -1;

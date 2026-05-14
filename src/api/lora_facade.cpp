@@ -64,15 +64,38 @@ LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
     // 5. ESP32: start the pump task if enabled.
 #ifdef ARDUINO_ARCH_ESP32
     if (cfg.facade_auto_pump) {
-        pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority,
-                    cfg.pump.stack_words, cfg.pump.core_id,
-                    cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms);
+        if (!pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority,
+                         cfg.pump.stack_words, cfg.pump.core_id,
+                         cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms)) {
+            // Pump failed to spawn (queue or task creation error).
+            // Tear down what we set up so far.
+            if (attached_dio0_ >= 0) {
+                detachInterrupt(digitalPinToInterrupt(attached_dio0_));
+                attached_dio0_ = -1;
+            }
+            trx_.end();
+            instance_ = nullptr;
+            return LoRaError::NotInitialized;
+        }
     }
 #endif
 
     // 6. Enter continuous RX if enabled.
     if (cfg.facade_auto_start_receive) {
-        (void)trx_.start_receive(/*continuous=*/true);
+        const LoRaError rxe = trx_.start_receive(/*continuous=*/true);
+        if (rxe != LoRaError::OK) {
+            // RX entry failed; tear down to avoid a half-initialised facade.
+#ifdef ARDUINO_ARCH_ESP32
+            pump_.stop();
+#endif
+            if (attached_dio0_ >= 0) {
+                detachInterrupt(digitalPinToInterrupt(attached_dio0_));
+                attached_dio0_ = -1;
+            }
+            trx_.end();
+            instance_ = nullptr;
+            return rxe;
+        }
     }
 
     running_ = true;
