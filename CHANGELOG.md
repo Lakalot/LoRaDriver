@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.2.1 — 2026-05-14
+
+Tooling and packaging release. No runtime / register-level changes —
+public radio API is byte-identical to 1.2.0.
+
+### Added
+
+- Full CI/CD pipeline: matrix host tests (Linux + Windows + macOS,
+  Debug + Release), dedicated MSVC `/EHs-c- /GR-` job, ASan + UBSan,
+  clang-format lint, clang-tidy static analysis, CodeQL security scan,
+  PlatformIO + Arduino IDE compile checks, Doxygen → GitHub Pages,
+  tag-triggered release packaging.
+- `src/LoRaDriver.h` umbrella header — re-exports every public namespaced
+  header. Required for arduino-cli library discovery (discovery is
+  shallow on `src/`, so a top-level anchor is needed). Optional for
+  PlatformIO / CMake consumers; the namespaced includes still work.
+
+### Changed
+
+- Public header layout: `include/loradriver/*.hpp` → `src/loradriver/*.hpp`.
+  No `#include` change for users — `loradriver/...` paths still resolve.
+  CMake consumers using `add_subdirectory(LoRaDriver)` are unaffected
+  (the library target's PUBLIC include dir is updated). Direct
+  consumers who pinned `target_include_directories(... include/)` must
+  switch to `src/`.
+- `Doxyfile` `PROJECT_NUMBER` corrected to match release version
+  (was stuck at `0.1.0`).
+
+### Fixed
+
+- Sanitizer build: pass `-fno-sanitize=vptr` — the library is built
+  with `-fno-rtti`, so UBSan's vptr check would link-fail without it.
+- `tools/lint.sh`: executable bit restored.
+- `lora_packet.hpp`: trailing comment alignment now clang-format-clean.
+
+### Docs
+
+- README rewritten: badges, "Why this driver?" pitch with the layered
+  DI diagram, full v1.2 feature list, supported hardware table,
+  installation for PlatformIO + Arduino IDE + CMake, quick-start,
+  documentation index, build/sanitize commands, semver policy,
+  contribution checklist.
+- `docs/api.md` `lib_deps` example switched from `symlink://` to the
+  pinned-tag git URL — much easier for downstream PlatformIO users.
+- `docs/api.md` "CI scope" section rewritten to describe the seven new
+  workflows instead of the old Ubuntu-only matrix.
+
 ## 1.2.0 — 2026-05-13
 
 Production-finishing release. Closes the residual gaps after v1.1.0:
