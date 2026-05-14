@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include "loradriver/chips/sx127x_driver.hpp"
 #include "loradriver/lora_config.hpp"
@@ -64,10 +65,18 @@ public:
     [[nodiscard]] LoRaError start_cad(bool auto_rx = false) noexcept;
 
     // === Callbacks (forwarded to inner LoRaTransceiver) ===
-    void on_receive(LoRaTransceiver::PacketCallback cb) noexcept;
-    void on_event(LoRaTransceiver::EventCallback cb) noexcept;
-    void on_tx_done(LoRaTransceiver::TxDoneCallback cb) noexcept;
-    void on_header(LoRaTransceiver::HeaderCallback cb) noexcept;
+    void on_receive(LoRaTransceiver::PacketCallback cb) noexcept {
+        transceiver().on_receive(std::move(cb));
+    }
+    void on_event(LoRaTransceiver::EventCallback cb) noexcept {
+        transceiver().on_event(std::move(cb));
+    }
+    void on_tx_done(LoRaTransceiver::TxDoneCallback cb) noexcept {
+        transceiver().on_tx_done(std::move(cb));
+    }
+    void on_header(LoRaTransceiver::HeaderCallback cb) noexcept {
+        transceiver().on_header(std::move(cb));
+    }
 
     // === Metrics ===
     [[nodiscard]] std::int16_t rssi() const noexcept;
@@ -82,12 +91,34 @@ public:
 #endif
 
     // === Escape hatches to the direct DI API ===
+    [[nodiscard]] LoRaTransceiver& transceiver() noexcept {
+#ifdef LORADRIVER_FACADE_HOST_TEST
+        if (test_mode_) return *trx_ref_;
+#endif
 #ifdef ARDUINO
-    [[nodiscard]] LoRaTransceiver&     transceiver() noexcept { return trx_; }
+        return trx_;
+#else
+        // Host build with no test mode: unreachable. Defined as a linker
+        // error to catch accidental usage.
+        extern LoRaTransceiver& loradriver_facade_no_arduino_transceiver();
+        return loradriver_facade_no_arduino_transceiver();
+#endif
+    }
+
+#ifdef ARDUINO
     [[nodiscard]] chips::SX127xDriver& driver() noexcept { return drv_; }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
     [[nodiscard]] platform::esp32::RadioPumpTask& pump() noexcept { return pump_; }
+#endif
+
+#ifdef LORADRIVER_FACADE_HOST_TEST
+public:
+    /// Host-test-only constructor. Wraps an externally-provided transceiver
+    /// instead of constructing the Arduino-side SPI/driver/transceiver stack.
+    /// Not compiled in production firmware builds.
+    explicit LoRa(LoRaTransceiver& injected) noexcept
+        : trx_ref_(&injected), test_mode_(true) {}
 #endif
 
 private:
@@ -115,6 +146,11 @@ private:
     std::int8_t attached_dio0_ = -1;
 
     static LoRa* instance_;
+
+#ifdef LORADRIVER_FACADE_HOST_TEST
+    LoRaTransceiver* trx_ref_ = nullptr;
+    bool test_mode_ = false;
+#endif
 };
 
 #if defined(ARDUINO) || defined(ARDUINO_ARCH_ESP32)

@@ -151,20 +151,9 @@ LoRaError LoRa::start_cad(bool auto_rx) noexcept {
     return trx_.start_cad(auto_rx);
 }
 
-// === Callbacks ===
-
-void LoRa::on_receive(LoRaTransceiver::PacketCallback cb) noexcept {
-    trx_.on_receive(std::move(cb));
-}
-void LoRa::on_event(LoRaTransceiver::EventCallback cb) noexcept {
-    trx_.on_event(std::move(cb));
-}
-void LoRa::on_tx_done(LoRaTransceiver::TxDoneCallback cb) noexcept {
-    trx_.on_tx_done(std::move(cb));
-}
-void LoRa::on_header(LoRaTransceiver::HeaderCallback cb) noexcept {
-    trx_.on_header(std::move(cb));
-}
+// Callbacks (on_receive/on_event/on_tx_done/on_header) are inline in
+// loradriver/lora.hpp so they are available to both Arduino and host
+// builds without an out-of-line definition.
 
 // === Metrics ===
 
@@ -187,5 +176,40 @@ platform::esp32::RadioPumpTask::Metrics LoRa::pump_metrics() const noexcept {
 LoRa lora;
 
 } // namespace loradriver
+
+#else // !ARDUINO — host build
+
+// Host stubs. The facade has no inner SPI/driver/transceiver members on
+// host (see lora.hpp), so begin()/end()/send()/etc. cannot run. The
+// LORADRIVER_FACADE_HOST_TEST injection ctor exists purely so the
+// transceiver() escape hatch and the inline callback forwarders can be
+// exercised; everything else is out-of-scope for host coverage.
+
+#include <cstdlib>
+
+namespace loradriver {
+
+LoRa* LoRa::instance_ = nullptr;
+
+// Destructor: on host, end() is a no-op (running_ stays false because
+// begin() is never called), so this is safe regardless of test_mode_.
+LoRa::~LoRa() { end(); }
+
+void LoRa::end() noexcept {
+    // running_ is always false on host (no begin() body linked); nothing
+    // to tear down. Keep instance_ housekeeping for symmetry.
+    if (instance_ == this) instance_ = nullptr;
+    running_ = false;
+}
+
+} // namespace loradriver
+
+// Host stub for the unreachable branch of LoRa::transceiver(). Reachable
+// only if the host-test ctor was NOT used (i.e. user accidentally
+// default-constructed a LoRa on host and called transceiver()). We abort
+// loudly rather than UB.
+loradriver::LoRaTransceiver& loradriver_facade_no_arduino_transceiver() {
+    std::abort();
+}
 
 #endif // ARDUINO
