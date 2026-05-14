@@ -4,6 +4,7 @@
 
 #include "loradriver/chips/sx127x_driver.hpp"
 #include "loradriver/hal/esp32_spi_device.hpp"
+#include "loradriver/lora.hpp"
 #include "loradriver/lora_config.hpp"
 #include "loradriver/lora_transceiver.hpp"
 
@@ -92,6 +93,41 @@ void test_start_receive_then_self_send_loopback() {
                   got_packet ? "yes" : "no", static_cast<unsigned>(got_len));
 }
 
+void test_facade_begin_then_send_async_loopback() {
+    using namespace loradriver;
+
+    // The existing tests already used g_trx for a full cycle, so the chip
+    // is in a known state. Tear it down before the facade takes over.
+    g_trx.end();
+
+    LoRaConfig cfg = LoRaConfig::esp32_sx1276_868mhz(kPinSS, kPinReset, kPinDio0);
+    cfg.spi_pins = {kPinSck, kPinMiso, kPinMosi};
+    cfg.frequency_hz = 868'100'000u;  // match other smoke tests
+    cfg.spreading_factor = 7;
+    cfg.bandwidth_hz = 125'000u;
+    cfg.tx_power_dbm = 10;  // gentle for bench
+
+    TEST_ASSERT_EQUAL(static_cast<int>(LoRaError::OK),
+                      static_cast<int>(lora.begin(cfg)));
+
+    volatile bool tx_done = false;
+    lora.on_tx_done([&tx_done]() noexcept { tx_done = true; });
+
+    const std::uint8_t payload[5] = {'h', 'e', 'l', 'l', 'o'};
+    TEST_ASSERT_TRUE(lora.send_async(payload, sizeof(payload)));
+
+    // Wait up to 2 s for the pump task to drive the TX and fire the
+    // callback. With SF7/BW125, a 5-byte packet is ~30 ms on-air; 2 s
+    // gives plenty of slack for scheduling.
+    const std::uint32_t deadline = millis() + 2000u;
+    while (!tx_done && millis() < deadline) {
+        delay(10);
+    }
+    TEST_ASSERT_TRUE_MESSAGE(tx_done, "TxDone callback not delivered within 2s");
+
+    lora.end();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(2000);
@@ -100,6 +136,7 @@ void setup() {
     RUN_TEST(test_check_alive);
     RUN_TEST(test_tx_blocking_returns_ok);
     RUN_TEST(test_start_receive_then_self_send_loopback);
+    RUN_TEST(test_facade_begin_then_send_async_loopback);
     UNITY_END();
 }
 
