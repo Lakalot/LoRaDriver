@@ -13,10 +13,29 @@ namespace loradriver::hal {
 /// burst transfers. ~5-10x faster than byte-by-byte transfer on 255-byte FIFO.
 class Esp32SpiDevice : public ISpiDevice {
 public:
-    Esp32SpiDevice(SPIClass& bus, std::int8_t cs_pin, std::uint32_t clock_hz = 8'000'000u) noexcept
-        : bus_(bus), cs_pin_(cs_pin), clock_hz_(clock_hz) {}
+    /// Default constructor — leaves the device unbound. Call bind() before begin().
+    /// Used by the loradriver::LoRa facade where SPI.begin() runs at user
+    /// setup() time, after the facade has been zero-initialised in .bss.
+    Esp32SpiDevice() noexcept = default;
+
+    /// Parameterised constructor — equivalent to default-construct + bind().
+    /// Direct-DI users keep using this verbatim.
+    Esp32SpiDevice(SPIClass& bus, std::int8_t cs_pin,
+                   std::uint32_t clock_hz = 8'000'000u) noexcept {
+        bind(bus, cs_pin, clock_hz);
+    }
+
+    /// Deferred bind. Safe to call once before begin(). Overwriting after
+    /// begin() is undefined behaviour — call end()/begin() to rebind.
+    void bind(SPIClass& bus, std::int8_t cs_pin,
+              std::uint32_t clock_hz = 8'000'000u) noexcept {
+        bus_ = &bus;
+        cs_pin_ = cs_pin;
+        clock_hz_ = clock_hz;
+    }
 
     [[nodiscard]] LoRaError begin() noexcept override {
+        if (bus_ == nullptr) return LoRaError::InvalidConfig;
         pinMode(cs_pin_, OUTPUT);
         digitalWrite(cs_pin_, HIGH);
         return LoRaError::OK;
@@ -24,31 +43,30 @@ public:
 
     [[nodiscard]] LoRaError transfer(std::uint8_t addr, const std::uint8_t* tx, std::uint8_t* rx,
                                      std::size_t len) noexcept override {
-        bus_.beginTransaction(SPISettings(clock_hz_, MSBFIRST, SPI_MODE0));
+        if (bus_ == nullptr) return LoRaError::InvalidConfig;
+        bus_->beginTransaction(SPISettings(clock_hz_, MSBFIRST, SPI_MODE0));
         digitalWrite(cs_pin_, LOW);
-        bus_.transfer(addr);
+        bus_->transfer(addr);
         if (len > 0u) {
             if (tx == nullptr && rx == nullptr) {
                 // Nothing to do.
             } else if (tx == nullptr) {
-                bus_.transferBytes(nullptr, rx, len);
+                bus_->transferBytes(nullptr, rx, len);
             } else if (rx == nullptr) {
-                // Cast-away const required by Arduino API. transferBytes
-                // does not mutate tx when rx==nullptr.
-                bus_.transferBytes(const_cast<std::uint8_t*>(tx), nullptr, len);
+                bus_->transferBytes(const_cast<std::uint8_t*>(tx), nullptr, len);
             } else {
-                bus_.transferBytes(const_cast<std::uint8_t*>(tx), rx, len);
+                bus_->transferBytes(const_cast<std::uint8_t*>(tx), rx, len);
             }
         }
         digitalWrite(cs_pin_, HIGH);
-        bus_.endTransaction();
+        bus_->endTransaction();
         return LoRaError::OK;
     }
 
 private:
-    SPIClass& bus_;
-    std::int8_t cs_pin_;
-    std::uint32_t clock_hz_;
+    SPIClass* bus_ = nullptr;
+    std::int8_t cs_pin_ = -1;
+    std::uint32_t clock_hz_ = 8'000'000u;
 };
 
 } // namespace loradriver::hal
