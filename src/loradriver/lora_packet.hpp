@@ -7,11 +7,16 @@ namespace loradriver {
 
 /// @brief Per-packet metadata delivered alongside the payload to on_receive.
 struct LoRaPacket {
-    std::int16_t rssi_dbm = 0;             ///< RSSI in dBm (negative).
-    std::int16_t snr_q4 = 0;               ///< SNR in quarter-dB units (signed).
-    std::int32_t frequency_error_hz = 0;   ///< Frequency offset of TX vs RX (Hz).
-    std::uint8_t length = 0;               ///< Payload length in bytes.
-    bool crc_valid = false;                ///< true if the packet CRC matched.
+    /// @brief RSSI in dBm (negative).
+    std::int16_t rssi_dbm = 0;
+    /// @brief SNR in quarter-dB units (signed).
+    std::int16_t snr_q4 = 0;
+    /// @brief Frequency offset of TX vs RX (Hz).
+    std::int32_t frequency_error_hz = 0;
+    /// @brief Payload length in bytes.
+    std::uint8_t length = 0;
+    /// @brief true if the packet CRC matched.
+    bool crc_valid = false;
 
     /// @brief Return SNR as floating-point dB (snr_q4 / 4.0).
     [[nodiscard]] float snr_db() const noexcept { return static_cast<float>(snr_q4) / 4.0f; }

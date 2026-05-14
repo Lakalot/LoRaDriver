@@ -50,5 +50,8 @@ jobs:
             - examples/Esp32WithPumpTask
             - examples/MultiInstance
           enable-deltas-report: false
+          verbose: true
           cli-compile-flags: |
             - --warnings=default
+            - --libraries
+            - /home/runner/Arduino/libraries
