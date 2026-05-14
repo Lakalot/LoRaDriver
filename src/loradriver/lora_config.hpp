@@ -69,7 +69,7 @@ struct LoRaConfig {
     /// All -1 (default) → LoRa::begin() calls SPI.begin() with no arguments.
     /// Any pin >= 0 → LoRa::begin() calls SPI.begin(sck, miso, mosi).
     struct SpiPins {
-        std::int8_t sck  = -1;
+        std::int8_t sck = -1;
         std::int8_t miso = -1;
         std::int8_t mosi = -1;
     };
@@ -78,22 +78,22 @@ struct LoRaConfig {
     /// @brief FreeRTOS pump task tuning (ESP32 only). Defaults match the
     /// values previously hardcoded in pump_.start(trx, 2, 2, 2048, 1, 4, 1000).
     struct PumpConfig {
-        std::uint32_t period_ms       = 2;
-        std::uint8_t  priority        = 2;
-        std::uint32_t stack_words     = 2048;
-        std::int8_t   core_id         = 1;
-        std::uint8_t  tx_queue_depth  = 4;
+        std::uint32_t period_ms = 2;
+        std::uint8_t priority = 2;
+        std::uint32_t stack_words = 2048;
+        std::int8_t core_id = 1;
+        std::uint8_t tx_queue_depth = 4;
         std::uint32_t stop_timeout_ms = 1000;
     };
     PumpConfig pump;
 
-    /// @brief Skip the implicit start_receive(true) at the end of
-    /// LoRa::begin(). For sender-only sketches.
-    bool auto_start_receive_disabled = false;
+    /// @brief LoRa::begin() automatically enters start_receive(true) after
+    /// init. Set false for sender-only sketches.
+    bool facade_auto_start_receive = true;
 
-    /// @brief ESP32 only: skip the implicit RadioPumpTask::start() at the
-    /// end of LoRa::begin(). For polling-only sketches.
-    bool auto_pump_disabled = false;
+    /// @brief LoRa::begin() automatically starts RadioPumpTask after init
+    /// (ESP32 only). Set false for polling-only sketches.
+    bool facade_auto_pump = true;
 
     /// @brief Reject configurations that the chip cannot honour.
     /// @return OK if every field is in range and mutually consistent.

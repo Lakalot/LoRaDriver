@@ -108,13 +108,13 @@ struct LoRaConfig {
     };
     PumpConfig pump;
 
-    /// @brief Skip the implicit start_receive(true) at the end of
-    /// LoRa::begin(). For sender-only sketches.
-    bool auto_start_receive_disabled = false;
+    /// @brief LoRa::begin() automatically enters start_receive(true) after
+    /// init. Set false for sender-only sketches.
+    bool facade_auto_start_receive = true;
 
-    /// @brief ESP32 only: skip the implicit RadioPumpTask::start() at
-    /// the end of LoRa::begin(). For polling-only sketches.
-    bool auto_pump_disabled = false;
+    /// @brief LoRa::begin() automatically starts RadioPumpTask after init
+    /// (ESP32 only). Set false for polling-only sketches.
+    bool facade_auto_pump = true;
 
     // ===== Presets (constexpr, zero runtime cost) =====
 
@@ -245,11 +245,11 @@ Abort-on-error. State left clean on failure (no half-init).
    `attachInterrupt(digitalPinToInterrupt(cfg.pin_dio0),
                     &loradriver_isr_dio0_trampoline, RISING)`.
    Set `attached_dio0_ = cfg.pin_dio0`.
-8. On ESP32, if `!cfg.auto_pump_disabled`:
+8. On ESP32, if `cfg.facade_auto_pump`:
    `pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority,
                 cfg.pump.stack_words, cfg.pump.core_id,
                 cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms)`.
-9. If `!cfg.auto_start_receive_disabled`:
+9. If `cfg.facade_auto_start_receive`:
    `trx_.start_receive(true)`.
 10. `running_ = true`. Return `OK`.
 
@@ -350,7 +350,7 @@ A `LoRa` constructor variant injecting `IRadioDriver&` is exposed behind
 | `TestFacadeBeginTwiceReturnsAlreadyInitialized` | Re-`begin()` returns `AlreadyInitialized` |
 | `TestFacadeEndIsIdempotent` | `end()` × 2, then `end()` without prior `begin()`, no crash |
 | `TestFacadeAutoStartReceiveDefault` | After `begin()`, transceiver state is `RxContinuous` |
-| `TestFacadeAutoStartReceiveDisabled` | With `auto_start_receive_disabled=true`, state stays `Standby` |
+| `TestFacadeAutoStartReceiveDisabled` | With `facade_auto_start_receive=false`, state stays `Standby` |
 | `TestFacadeSendForwardsToTransceiver` | `send(buf, len)` reaches FakeSpi as a FIFO write + Tx mode |
 | `TestFacadePresetEsp32Sx1276Has868Mhz` | Preset frequency_hz matches table |
 | `TestFacadePresetArduinoSx1278Has433Mhz` | Preset frequency_hz matches table |
@@ -401,7 +401,7 @@ auto-ISR → auto-pump → send_async path → TxDone callback delivery.
 - LoRaConfig::SpiPins for custom SPI bus pinouts.
 - LoRaConfig::PumpConfig for pump task tuning, with defaults matching
   the prior hardcoded values.
-- LoRaConfig flags auto_start_receive_disabled and auto_pump_disabled.
+- LoRaConfig flags facade_auto_start_receive and facade_auto_pump (both default true).
 - src/loradriver/lora.hpp + src/api/lora_facade.cpp.
 
 ### Changed

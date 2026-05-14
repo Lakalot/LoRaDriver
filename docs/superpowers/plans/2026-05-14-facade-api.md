@@ -281,13 +281,13 @@ Insert the new members **before** the `validate()` declaration. The exact insert
     };
     PumpConfig pump;
 
-    /// @brief Skip the implicit start_receive(true) at the end of
-    /// LoRa::begin(). For sender-only sketches.
-    bool auto_start_receive_disabled = false;
+    /// @brief LoRa::begin() automatically enters start_receive(true) after
+    /// init. Set false for sender-only sketches.
+    bool facade_auto_start_receive = true;
 
-    /// @brief ESP32 only: skip the implicit RadioPumpTask::start() at the
-    /// end of LoRa::begin(). For polling-only sketches.
-    bool auto_pump_disabled = false;
+    /// @brief LoRa::begin() automatically starts RadioPumpTask after init
+    /// (ESP32 only). Set false for polling-only sketches.
+    bool facade_auto_pump = true;
 
 ```
 
@@ -321,8 +321,8 @@ The result, in order from line ~60 to the end of the struct, must be:
     };
     PumpConfig pump;
 
-    bool auto_start_receive_disabled = false;
-    bool auto_pump_disabled = false;
+    bool facade_auto_start_receive = true;
+    bool facade_auto_pump = true;
 
     /// @brief Reject configurations that the chip cannot honour.
     /// @return OK if every field is in range and mutually consistent.
@@ -364,8 +364,8 @@ upcoming loradriver::LoRa facade:
    miso, mosi) for boards with non-default pinouts.
  * PumpConfig: tunable RadioPumpTask parameters with defaults matching
    the values previously hardcoded in pump_.start(...).
- * auto_start_receive_disabled / auto_pump_disabled: opt out of the
-   facade's automatic start_receive / pump.start steps.
+ * facade_auto_start_receive / facade_auto_pump: opt out of the
+   facade's automatic start_receive / pump.start steps (both default true).
 
 validate() is unchanged — the new fields are independently optional.
 Direct-DI users (Esp32SpiDevice + LoRaTransceiver + RadioPumpTask)
@@ -817,7 +817,7 @@ LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
 
     // 5. ESP32: start the pump task unless disabled.
 #ifdef ARDUINO_ARCH_ESP32
-    if (!cfg.auto_pump_disabled) {
+    if (cfg.facade_auto_pump) {
         pump_.start(trx_, cfg.pump.period_ms, cfg.pump.priority,
                     cfg.pump.stack_words, cfg.pump.core_id,
                     cfg.pump.tx_queue_depth, cfg.pump.stop_timeout_ms);
@@ -825,7 +825,7 @@ LoRaError LoRa::begin(const LoRaConfig& cfg) noexcept {
 #endif
 
     // 6. Enter continuous RX unless disabled.
-    if (!cfg.auto_start_receive_disabled) {
+    if (cfg.facade_auto_start_receive) {
         (void)trx_.start_receive(/*continuous=*/true);
     }
 
@@ -1694,8 +1694,8 @@ lora.send_async(payload, len);
 5. (ESP32) `pump.start(...)` with `cfg.pump.*` parameters.
 6. `transceiver().start_receive(true)`.
 
-Opt out of steps 5 and 6 via `cfg.auto_pump_disabled` and
-`cfg.auto_start_receive_disabled`.
+Opt out of steps 5 and 6 by setting `cfg.facade_auto_pump = false` and
+`cfg.facade_auto_start_receive = false` (both default `true`).
 
 `lora.end()` is idempotent and tears down in reverse order.
 
@@ -1810,7 +1810,7 @@ you need into your own buffer and signal your main task.
 To opt out of the auto-RX (sender-only sketches):
 
 ```cpp
-cfg.auto_start_receive_disabled = true;
+cfg.facade_auto_start_receive = false;
 lora.begin(cfg);  // chip stays in Standby
 ```
 
@@ -2020,9 +2020,9 @@ verbatim. Strictly additive — no breaking changes.
 - `LoRaConfig::SpiPins` for boards with non-default SPI bus pinouts.
 - `LoRaConfig::PumpConfig` for tunable pump task parameters; defaults
   match the values previously hardcoded in `pump_.start(trx, 2, 2, 2048, 1)`.
-- `LoRaConfig::auto_start_receive_disabled` and
-  `LoRaConfig::auto_pump_disabled` opt-outs for sender-only / polling-only
-  sketches.
+- `LoRaConfig::facade_auto_start_receive` and
+  `LoRaConfig::facade_auto_pump` (both default `true`) opt-outs for
+  sender-only / polling-only sketches.
 - `examples/Esp32Async/` (renamed from `Esp32WithPumpTask`) showing the
   facade's `send_async` flow.
 - `examples/AdvancedDirectDi/` preserving the pre-facade explicit DI
