@@ -64,6 +64,37 @@ struct LoRaConfig {
     std::int8_t pin_dio0 = -1;
     std::int8_t pin_dio1 = -1;
 
+    /// @brief Optional SPI bus pin override (ESP32 boards with non-default
+    /// MOSI/MISO/SCK like TTGO MOSI=27 or SYNC-SIGNAL-LORA MOSI=22).
+    /// All -1 (default) → LoRa::begin() calls SPI.begin() with no arguments.
+    /// Any pin >= 0 → LoRa::begin() calls SPI.begin(sck, miso, mosi).
+    struct SpiPins {
+        std::int8_t sck  = -1;
+        std::int8_t miso = -1;
+        std::int8_t mosi = -1;
+    };
+    SpiPins spi_pins;
+
+    /// @brief FreeRTOS pump task tuning (ESP32 only). Defaults match the
+    /// values previously hardcoded in pump_.start(trx, 2, 2, 2048, 1, 4, 1000).
+    struct PumpConfig {
+        std::uint32_t period_ms       = 2;
+        std::uint8_t  priority        = 2;
+        std::uint32_t stack_words     = 2048;
+        std::int8_t   core_id         = 1;
+        std::uint8_t  tx_queue_depth  = 4;
+        std::uint32_t stop_timeout_ms = 1000;
+    };
+    PumpConfig pump;
+
+    /// @brief Skip the implicit start_receive(true) at the end of
+    /// LoRa::begin(). For sender-only sketches.
+    bool auto_start_receive_disabled = false;
+
+    /// @brief ESP32 only: skip the implicit RadioPumpTask::start() at the
+    /// end of LoRa::begin(). For polling-only sketches.
+    bool auto_pump_disabled = false;
+
     /// @brief Reject configurations that the chip cannot honour.
     /// @return OK if every field is in range and mutually consistent.
     [[nodiscard]] LoRaError validate() const noexcept;
