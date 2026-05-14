@@ -30,3 +30,8 @@
 #include "loradriver/hal/esp32_spi_device.hpp"
 #include "loradriver/platform/esp32/radio_pump_task.hpp"
 #endif
+
+// Facade (Arduino only; host code uses LoRaTransceiver directly).
+#ifdef ARDUINO
+#include "loradriver/lora.hpp"
+#endif
