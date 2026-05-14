@@ -39,13 +39,30 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install platformio==6.1.19
 
-      - name: Library compile check via examples (pio ci)
+      - name: Library compile check via Arduino IDE examples (pio ci)
         run: |
           for ex in examples/BasicSender examples/BasicReceiver \
                    examples/Esp32Async examples/MultiInstance \
                    examples/AdvancedDirectDi; do
             echo "=== Compiling $ex ==="
             python -m platformio ci "$ex" \
+              --board=esp32dev \
+              --lib=. \
+              --project-option="framework=arduino" \
+              --project-option="build_unflags=-std=gnu++11" \
+              --project-option="build_flags=-std=gnu++17"
+          done
+
+      - name: PlatformIO example projects compile check (pio ci on each src/)
+        run: |
+          # Each examples/pio/<name>/ is a standalone PIO project. For CI we
+          # don't `pio run` against its platformio.ini (that would pull the
+          # pinned release tag from GitHub) — instead `pio ci` the src/ folder
+          # against the working-tree library via --lib=.
+          for ex in examples/pio/sender examples/pio/receiver \
+                   examples/pio/async-pump; do
+            echo "=== Compiling $ex (against working-tree lib) ==="
+            python -m platformio ci "$ex/src" \
               --board=esp32dev \
               --lib=. \
               --project-option="framework=arduino" \

@@ -149,7 +149,11 @@ void loop() {
 }
 ```
 
-> See [`examples/`](examples/) for blocking sender, polling receiver, ESP32 async with auto-pump-task, multi-instance (two radios), and the advanced direct-DI pattern. Read [`USAGE.md`](USAGE.md) for a task-oriented guide.
+> Arduino IDE sketches: [`examples/`](examples/) — blocking sender, polling receiver, ESP32 async with auto-pump-task, multi-instance, advanced direct-DI.
+>
+> PlatformIO standalone projects: [`examples/pio/`](examples/pio/) — copy any subfolder verbatim, `pio run --target upload`, done. Three flavours: `sender/`, `receiver/`, `async-pump/`.
+>
+> Read [`USAGE.md`](USAGE.md) for a task-oriented guide.
 
 ## Documentation
 
