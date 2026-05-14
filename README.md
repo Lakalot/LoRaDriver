@@ -1,5 +1,12 @@
 # LoRaDriver
 
+[![Host tests](https://github.com/Lakalot/LoRaDriver/actions/workflows/host-tests.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/host-tests.yml)
+[![PlatformIO build](https://github.com/Lakalot/LoRaDriver/actions/workflows/platformio.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/platformio.yml)
+[![Arduino IDE compile](https://github.com/Lakalot/LoRaDriver/actions/workflows/arduino-compile.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/arduino-compile.yml)
+[![clang-tidy](https://github.com/Lakalot/LoRaDriver/actions/workflows/clang-tidy.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/clang-tidy.yml)
+[![CodeQL](https://github.com/Lakalot/LoRaDriver/actions/workflows/codeql.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/codeql.yml)
+[![Docs](https://github.com/Lakalot/LoRaDriver/actions/workflows/docs.yml/badge.svg)](https://github.com/Lakalot/LoRaDriver/actions/workflows/docs.yml)
+
 Clean C++17 driver for Semtech SX1276 and SX1278 LoRa transceivers.
 
 ## Highlights

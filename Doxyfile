@@ -1,5 +1,5 @@
 PROJECT_NAME           = "LoRaDriver"
-PROJECT_NUMBER         = "0.1.0"
+PROJECT_NUMBER         = "1.2.0"
 OUTPUT_DIRECTORY       = docs/_doxygen
 INPUT                  = include src
 RECURSIVE              = YES

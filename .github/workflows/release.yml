@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Verify host tests on release tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        run: cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build/host --config Release
+      - name: Test
+        run: ctest --test-dir build/host -C Release --output-on-failure
+
+  package:
+    name: Package and publish release
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build library archive
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.ref }}"
+          VERSION="${TAG#v}"
+          STAGE="LoRaDriver-${VERSION}"
+          mkdir -p "dist/${STAGE}"
+          cp -r src include examples library.json library.properties \
+                README.md CHANGELOG.md CMakeLists.txt CMakePresets.json \
+                platformio.ini Doxyfile \
+                "dist/${STAGE}/"
+          if [[ -f LICENSE ]]; then cp LICENSE "dist/${STAGE}/"; fi
+          if [[ -d docs ]]; then cp -r docs "dist/${STAGE}/"; fi
+          (cd dist && zip -r "${STAGE}.zip" "${STAGE}")
+          (cd dist && tar -czf "${STAGE}.tar.gz" "${STAGE}")
+
+      - name: Extract changelog section for this tag
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.ref }}"
+          VERSION="${TAG#v}"
+          NOTES_FILE="$(mktemp)"
+          awk -v ver="$VERSION" '
+            BEGIN { capture = 0 }
+            /^## / {
+              if (capture) exit
+              if (index($0, ver) > 0) { capture = 1; next }
+            }
+            capture { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+          if [[ ! -s "$NOTES_FILE" ]]; then
+            echo "No changelog section found for ${VERSION}; using auto-generated notes." > "$NOTES_FILE"
+          fi
+          echo "file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.ref }}
+          name: LoRaDriver ${{ steps.tag.outputs.ref }}
+          body_path: ${{ steps.notes.outputs.file }}
+          generate_release_notes: true
+          files: |
+            dist/LoRaDriver-*.zip
+            dist/LoRaDriver-*.tar.gz

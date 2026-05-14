@@ -2,46 +2,90 @@ name: Host tests
 
 on:
   push:
-    branches: [main, "rewrite/**", "hardening/**", "finishing/**"]
+    branches: [main, "rewrite/**", "hardening/**", "finishing/**", "ci/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
-# Ubuntu-only matrix to stay within the free GitHub Actions tier
-# (Linux is unmetered on public repos; Windows = 2x and macOS = 10x billable).
-# The MSVC -fno-exceptions and Linux gcc -fno-exceptions paths are exercised
-# locally before each merge — see docs/api.md.
+concurrency:
+  group: host-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ninja -y
+
+      - name: Set up MSVC dev shell (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure CMake
-        run: cmake -S . -B build/host
+        run: cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build
-        run: cmake --build build/host --config Debug
+        run: cmake --build build/host --config ${{ matrix.build_type }}
 
       - name: Run host tests
-        run: ctest --test-dir build/host -C Debug --output-on-failure
+        run: ctest --test-dir build/host -C ${{ matrix.build_type }} --output-on-failure
+
+  msvc-no-exceptions:
+    name: Windows / MSVC /EHs-c- /GR- (noexcept invariant)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Ninja
+        run: choco install ninja -y
+      - name: Configure with LORADRIVER_NO_EXCEPTIONS_MSVC=ON
+        run: cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release -DLORADRIVER_NO_EXCEPTIONS_MSVC=ON
+      - name: Build
+        run: cmake --build build/host --config Release
+      - name: Run host tests
+        run: ctest --test-dir build/host -C Release --output-on-failure
 
   sanitizers:
+    name: Ubuntu / ASan + UBSan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: Configure with sanitizers
-        run: cmake -S . -B build/asan -DLORADRIVER_SANITIZERS=ON
+        run: cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLORADRIVER_SANITIZERS=ON
       - name: Build
         run: cmake --build build/asan
       - name: Run
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --test-dir build/asan --output-on-failure
 
   lint:
+    name: clang-format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install clang-format
-        run: sudo apt-get install -y clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
       - name: Run clang-format check
         run: ./tools/lint.sh

@@ -79,18 +79,28 @@ periodically from your main loop or pump task and re-init if it fails.
 
 ## CI scope
 
-GitHub Actions runs `build-and-test`, `sanitizers` (ASan + UBSan) and
-`lint` (clang-format) on `ubuntu-latest` for every push to main / rewrite
-/ hardening / finishing branches and every PR to main. Linux is
-unmetered on public repos.
+GitHub Actions runs the following workflows on every push to main /
+rewrite / hardening / finishing / ci branches and every PR to main:
 
-The MSVC `-fno-exceptions` path (`LORADRIVER_NO_EXCEPTIONS_MSVC=ON`) and
-macOS Clang build are validated locally before each merge — they exist
-in the CMake configuration but aren't run in CI to stay within the free
-tier. If you want full multi-OS coverage in CI, add them back as
-additional jobs in `.github/workflows/host-tests.yml` (windows-latest
-and macos-latest are billable even on public repos: 2x and 10x
-multipliers respectively).
+- **Host tests** (`host-tests.yml`) — matrix of `{ubuntu, windows, macos}
+  × {Debug, Release}` plus a dedicated MSVC `/EHs-c- /GR-` job
+  (`LORADRIVER_NO_EXCEPTIONS_MSVC=ON`) and an Ubuntu ASan+UBSan job, and
+  clang-format lint.
+- **PlatformIO build** (`platformio.yml`) — `pio run -e esp32dev` and a
+  no-upload smoke test build to validate the embedded toolchain.
+- **Arduino IDE compile** (`arduino-compile.yml`) — `arduino/compile-sketches`
+  builds every example in `examples/` against `esp32:esp32:esp32`.
+- **clang-tidy** (`clang-tidy.yml`) — runs the checks declared in
+  `.clang-tidy` against `src/*.cpp` using a Ninja-generated
+  `compile_commands.json`.
+- **CodeQL** (`codeql.yml`) — GitHub's C++ security/quality scan, also
+  runs weekly on a schedule.
+- **Docs** (`docs.yml`) — Doxygen HTML deployed to GitHub Pages on every
+  push to `main`.
+- **Release** (`release.yml`) — tag-triggered (`v*.*.*`). Re-runs host
+  tests, packages a versioned `LoRaDriver-X.Y.Z.{zip,tar.gz}` containing
+  `src/`, `include/`, `examples/`, manifests and docs, then publishes a
+  GitHub Release with the matching `CHANGELOG.md` section as the body.
 
 ## Out of scope for v1.1
 
