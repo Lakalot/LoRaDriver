@@ -82,8 +82,10 @@ public:
 #endif
 
     // === Escape hatches to the direct DI API ===
+#ifdef ARDUINO
     [[nodiscard]] LoRaTransceiver&     transceiver() noexcept { return trx_; }
     [[nodiscard]] chips::SX127xDriver& driver() noexcept { return drv_; }
+#endif
 #ifdef ARDUINO_ARCH_ESP32
     [[nodiscard]] platform::esp32::RadioPumpTask& pump() noexcept { return pump_; }
 #endif
