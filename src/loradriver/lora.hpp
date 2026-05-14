@@ -98,9 +98,10 @@ public:
 #ifdef ARDUINO
         return trx_;
 #else
-        // Host build with no test mode: unreachable. Defined as a linker
-        // error to catch accidental usage.
-        extern LoRaTransceiver& loradriver_facade_no_arduino_transceiver();
+        // Host build with no test mode: unreachable in correct programs.
+        // Defined in lora_facade.cpp as a std::abort() trap so accidental
+        // use is loud rather than UB.
+        [[noreturn]] extern LoRaTransceiver& loradriver_facade_no_arduino_transceiver();
         return loradriver_facade_no_arduino_transceiver();
 #endif
     }
@@ -147,7 +148,10 @@ private:
 
     static LoRa* instance_;
 
-#ifdef LORADRIVER_FACADE_HOST_TEST
+#ifndef ARDUINO
+    // These exist on every host TU (library + tests) to keep sizeof(LoRa)
+    // consistent across TUs. The injection constructor that writes to them
+    // is still gated on LORADRIVER_FACADE_HOST_TEST.
     LoRaTransceiver* trx_ref_ = nullptr;
     bool test_mode_ = false;
 #endif

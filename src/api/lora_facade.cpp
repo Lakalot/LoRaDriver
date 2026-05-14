@@ -208,7 +208,7 @@ void LoRa::end() noexcept {
 // only if the host-test ctor was NOT used (i.e. user accidentally
 // default-constructed a LoRa on host and called transceiver()). We abort
 // loudly rather than UB.
-loradriver::LoRaTransceiver& loradriver_facade_no_arduino_transceiver() {
+[[noreturn]] loradriver::LoRaTransceiver& loradriver_facade_no_arduino_transceiver() {
     std::abort();
 }
 
