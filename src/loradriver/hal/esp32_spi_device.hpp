@@ -25,8 +25,8 @@ public:
         bind(bus, cs_pin, clock_hz);
     }
 
-    /// Deferred bind. Safe to call once before begin(). Overwriting after
-    /// begin() is undefined behaviour — call end()/begin() to rebind.
+    /// Deferred bind. Safe to call any number of times before begin().
+    /// Calling after begin() is undefined behaviour — call end()/begin() to rebind.
     void bind(SPIClass& bus, std::int8_t cs_pin,
               std::uint32_t clock_hz = 8'000'000u) noexcept {
         bus_ = &bus;
@@ -35,7 +35,7 @@ public:
     }
 
     [[nodiscard]] LoRaError begin() noexcept override {
-        if (bus_ == nullptr) return LoRaError::InvalidConfig;
+        if (bus_ == nullptr) return LoRaError::NotInitialized;
         pinMode(cs_pin_, OUTPUT);
         digitalWrite(cs_pin_, HIGH);
         return LoRaError::OK;
@@ -43,11 +43,12 @@ public:
 
     [[nodiscard]] LoRaError transfer(std::uint8_t addr, const std::uint8_t* tx, std::uint8_t* rx,
                                      std::size_t len) noexcept override {
-        if (bus_ == nullptr) return LoRaError::InvalidConfig;
+        if (bus_ == nullptr) return LoRaError::NotInitialized;
         bus_->beginTransaction(SPISettings(clock_hz_, MSBFIRST, SPI_MODE0));
         digitalWrite(cs_pin_, LOW);
         bus_->transfer(addr);
         if (len > 0u) {
+            // transferBytes does not mutate tx; const_cast required by Arduino signature.
             if (tx == nullptr && rx == nullptr) {
                 // Nothing to do.
             } else if (tx == nullptr) {
