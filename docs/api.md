@@ -91,7 +91,7 @@ ISR — the driver does not own the GPIO line.
 Recommended (pin to a release tag — reproducible, no clone required):
 
 ```
-lib_deps = https://github.com/Lakalot/LoRaDriver.git#v1.2.1
+lib_deps = https://github.com/Lakalot/LoRaDriver.git#v1.3.0
 ```
 
 Track the rolling main branch (gets fixes faster, but builds aren't

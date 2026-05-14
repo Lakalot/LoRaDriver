@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.3.0 — 2026-05-14
+
+Facade API release. Reduces the minimal ESP32 + pump-task user sketch
+from ~40 lines to ~12, while preserving the existing direct DI API
+verbatim. Strictly additive — no breaking changes.
+
+### Added
+
+- `loradriver::LoRa` facade class (`src/loradriver/lora.hpp` +
+  `src/api/lora_facade.cpp`) plus the global instance `loradriver::lora`.
+  `begin(cfg)` automatically:
+  - Calls `SPI.begin()` (or `SPI.begin(sck, miso, mosi)` if `cfg.spi_pins`
+    is set);
+  - Binds the SPI device member;
+  - Runs `transceiver().begin(cfg)`;
+  - Attaches `attachInterrupt(cfg.pin_dio0, ...)` to a static IRAM
+    trampoline;
+  - (ESP32) starts `RadioPumpTask` with `cfg.pump.*` parameters;
+  - Enters `start_receive(true)` continuous mode.
+- Four `LoRaConfig` named presets, all `constexpr` zero-cost:
+  `esp32_sx1276_868mhz`, `esp32_sx1278_433mhz`, `arduino_sx1276_868mhz`,
+  `arduino_sx1278_433mhz`.
+- `LoRaConfig::SpiPins` for boards with non-default SPI bus pinouts.
+- `LoRaConfig::PumpConfig` for tunable pump task parameters; defaults
+  match the values previously hardcoded in `pump_.start(trx, 2, 2, 2048, 1)`.
+- `LoRaConfig::facade_auto_start_receive` (default true) and
+  `LoRaConfig::facade_auto_pump` (default true) — opt-outs for sender-
+  only / polling-only sketches.
+- `examples/Esp32Async/` (renamed from `Esp32WithPumpTask`) showing the
+  facade's `send_async` flow.
+- `examples/AdvancedDirectDi/` preserving the pre-facade explicit DI
+  pattern as a first-class example.
+- `USAGE.md` task-oriented guide.
+
+### Changed
+
+- `Esp32SpiDevice` and `ArduinoSpiDevice` gain a default constructor
+  and a `bind(SPI, cs, clock_hz)` setter for deferred init. The
+  existing parameterised constructors delegate to `bind()` and remain
+  back-compatible.
+- `LoRaConfig::validate()` now rejects partial `spi_pins` configs
+  (either all three SCK/MISO/MOSI are -1 or all three are >= 0).
+- `examples/BasicSender`, `examples/BasicReceiver`, and (renamed)
+  `examples/Esp32Async` rewritten using the facade. `examples/MultiInstance`
+  unchanged structurally; gains a header comment explaining why it stays
+  on the direct DI API.
+- CI: `arduino-compile.yml` and `platformio.yml` sketch lists updated
+  for the renamed/new examples.
+- README quick-start, `docs/api.md` (new "Facade API" section).
+
+### Notes
+
+- The direct DI API (`Esp32SpiDevice` + `SX127xDriver` +
+  `LoRaTransceiver` + `RadioPumpTask`) is **unchanged and first-class**.
+  Multi-instance, host tests with `FakeSpiDevice`, and custom HAL
+  injection continue to go through it.
+
 ## 1.2.1 — 2026-05-14
 
 Tooling and packaging release. No runtime / register-level changes —

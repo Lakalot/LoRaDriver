@@ -7,9 +7,9 @@ namespace loradriver {
 /// @brief Compile-time major version. Matches CMake project() VERSION.
 constexpr std::uint8_t kVersionMajor = 1;
 /// @brief Compile-time minor version.
-constexpr std::uint8_t kVersionMinor = 2;
+constexpr std::uint8_t kVersionMinor = 3;
 /// @brief Compile-time patch version.
-constexpr std::uint8_t kVersionPatch = 1;
+constexpr std::uint8_t kVersionPatch = 0;
 
 /// @brief Runtime major version (matches kVersionMajor at build time).
 [[nodiscard]] std::uint8_t version_major() noexcept;

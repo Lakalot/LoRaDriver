@@ -40,10 +40,10 @@ bool TestEventEnumDistinct() {
 
 bool TestVersionAccessors() {
     LD_EXPECT_EQ(loradriver::version_major(), std::uint8_t{1});
-    LD_EXPECT_EQ(loradriver::version_minor(), std::uint8_t{2});
-    LD_EXPECT_EQ(loradriver::version_patch(), std::uint8_t{1});
+    LD_EXPECT_EQ(loradriver::version_minor(), std::uint8_t{3});
+    LD_EXPECT_EQ(loradriver::version_patch(), std::uint8_t{0});
     const char* s = loradriver::version_string();
-    LD_EXPECT(s[0] == '1' && s[1] == '.' && s[2] == '2');
+    LD_EXPECT(s[0] == '1' && s[1] == '.' && s[2] == '3');
     return true;
 }
 

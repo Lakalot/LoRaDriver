@@ -86,7 +86,7 @@ Pin to a release tag (reproducible builds):
 platform   = espressif32
 board      = esp32dev
 framework  = arduino
-lib_deps   = https://github.com/Lakalot/LoRaDriver.git#v1.2.1
+lib_deps   = https://github.com/Lakalot/LoRaDriver.git#v1.3.0
 ```
 
 Or track `main` (rolling, gets fixes first):
