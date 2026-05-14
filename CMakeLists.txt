@@ -45,6 +45,7 @@ target_sources(loradriver PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/hal/spi_device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chips/sx127x/sx127x_driver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_transceiver.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/api/lora_facade.cpp
 )
 
 enable_testing()
