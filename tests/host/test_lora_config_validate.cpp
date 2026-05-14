@@ -182,6 +182,42 @@ bool TestSx1279Allows868MHz() {
     return true;
 }
 
+bool TestPresetEsp32Sx1276Has868Mhz() {
+    const auto cfg = loradriver::LoRaConfig::esp32_sx1276_868mhz(5, 14, 26);
+    LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1276);
+    LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{868'000'000u});
+    LD_EXPECT_EQ(cfg.pin_ss, std::int8_t{5});
+    LD_EXPECT_EQ(cfg.pin_reset, std::int8_t{14});
+    LD_EXPECT_EQ(cfg.pin_dio0, std::int8_t{26});
+    LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
+    return true;
+}
+
+bool TestPresetEsp32Sx1278Has433Mhz() {
+    const auto cfg = loradriver::LoRaConfig::esp32_sx1278_433mhz(5, 14, 26);
+    LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1278);
+    LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{433'920'000u});
+    LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
+    return true;
+}
+
+bool TestPresetArduinoSx1276Has868Mhz() {
+    const auto cfg = loradriver::LoRaConfig::arduino_sx1276_868mhz(10, 9, 2);
+    LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1276);
+    LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{868'000'000u});
+    LD_EXPECT_EQ(cfg.pin_ss, std::int8_t{10});
+    LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
+    return true;
+}
+
+bool TestPresetArduinoSx1278Has433Mhz() {
+    const auto cfg = loradriver::LoRaConfig::arduino_sx1278_433mhz(10, 9, 2);
+    LD_EXPECT_EQ(cfg.chip, loradriver::ChipModel::SX1278);
+    LD_EXPECT_EQ(cfg.frequency_hz, std::uint32_t{433'920'000u});
+    LD_EXPECT_EQ(cfg.validate(), loradriver::LoRaError::OK);
+    return true;
+}
+
 int main() {
     LD_RUN(TestSx1277RejectsSf10AndAbove);
     LD_RUN(TestSx1279Allows868MHz);
@@ -200,5 +236,9 @@ int main() {
     LD_RUN(TestRejectsTxPowerForRfo);
     LD_RUN(TestRejectsMissingPins);
     LD_RUN(TestLdroRequiredForSlowSymbols);
+    LD_RUN(TestPresetEsp32Sx1276Has868Mhz);
+    LD_RUN(TestPresetEsp32Sx1278Has433Mhz);
+    LD_RUN(TestPresetArduinoSx1276Has868Mhz);
+    LD_RUN(TestPresetArduinoSx1278Has433Mhz);
     return loradriver::test::report();
 }

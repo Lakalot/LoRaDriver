@@ -102,6 +102,82 @@ struct LoRaConfig {
     /// @brief Whether Low Data Rate Optimise must be enabled for this SF/BW.
     /// @return true if symbol duration > 16 ms (Semtech AN1200.24).
     [[nodiscard]] bool ldro_required() const noexcept;
+
+    // ===== Named presets (constexpr, zero runtime cost) =====
+
+    /// @brief ESP32 + SX1276 868 MHz Europe. SF9 / BW 125k / CR 4/5,
+    /// sync 0x12, PA_BOOST 14 dBm. Override fields after construction.
+    [[nodiscard]] static constexpr LoRaConfig esp32_sx1276_868mhz(
+        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+        LoRaConfig c{};
+        c.chip = ChipModel::SX1276;
+        c.frequency_hz = 868'000'000u;
+        c.spreading_factor = 9;
+        c.bandwidth_hz = 125'000u;
+        c.coding_rate = 5;
+        c.sync_word = 0x12;
+        c.tx_power_dbm = 14;
+        c.pa_output = PaOutput::PaBoost;
+        c.pin_ss = cs;
+        c.pin_reset = rst;
+        c.pin_dio0 = dio0;
+        return c;
+    }
+
+    /// @brief ESP32 + SX1278 433 MHz. SF9 / BW 125k / CR 4/5, sync 0x12,
+    /// PA_BOOST 14 dBm.
+    [[nodiscard]] static constexpr LoRaConfig esp32_sx1278_433mhz(
+        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+        LoRaConfig c{};
+        c.chip = ChipModel::SX1278;
+        c.frequency_hz = 433'920'000u;
+        c.spreading_factor = 9;
+        c.bandwidth_hz = 125'000u;
+        c.coding_rate = 5;
+        c.sync_word = 0x12;
+        c.tx_power_dbm = 14;
+        c.pa_output = PaOutput::PaBoost;
+        c.pin_ss = cs;
+        c.pin_reset = rst;
+        c.pin_dio0 = dio0;
+        return c;
+    }
+
+    /// @brief Generic Arduino + SX1276 868 MHz.
+    [[nodiscard]] static constexpr LoRaConfig arduino_sx1276_868mhz(
+        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+        LoRaConfig c{};
+        c.chip = ChipModel::SX1276;
+        c.frequency_hz = 868'000'000u;
+        c.spreading_factor = 9;
+        c.bandwidth_hz = 125'000u;
+        c.coding_rate = 5;
+        c.sync_word = 0x12;
+        c.tx_power_dbm = 14;
+        c.pa_output = PaOutput::PaBoost;
+        c.pin_ss = cs;
+        c.pin_reset = rst;
+        c.pin_dio0 = dio0;
+        return c;
+    }
+
+    /// @brief Generic Arduino + SX1278 433 MHz.
+    [[nodiscard]] static constexpr LoRaConfig arduino_sx1278_433mhz(
+        std::int8_t cs, std::int8_t rst, std::int8_t dio0) noexcept {
+        LoRaConfig c{};
+        c.chip = ChipModel::SX1278;
+        c.frequency_hz = 433'920'000u;
+        c.spreading_factor = 9;
+        c.bandwidth_hz = 125'000u;
+        c.coding_rate = 5;
+        c.sync_word = 0x12;
+        c.tx_power_dbm = 14;
+        c.pa_output = PaOutput::PaBoost;
+        c.pin_ss = cs;
+        c.pin_reset = rst;
+        c.pin_dio0 = dio0;
+        return c;
+    }
 };
 
 } // namespace loradriver
