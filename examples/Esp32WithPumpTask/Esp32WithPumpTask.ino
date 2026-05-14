@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+#include <LoRaDriver.h>
+
 #include "loradriver/chips/sx127x_driver.hpp"
 #include "loradriver/hal/esp32_spi_device.hpp"
 #include "loradriver/lora_transceiver.hpp"

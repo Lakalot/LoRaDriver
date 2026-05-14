@@ -2,6 +2,11 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+// Arduino IDE / arduino-cli discovers libraries from a top-level header.
+// Including <LoRaDriver.h> anchors the discovery; the namespaced headers
+// below (used by PlatformIO / CMake consumers) then resolve via -Isrc.
+#include <LoRaDriver.h>
+
 #include "loradriver/chips/sx127x_driver.hpp"
 #include "loradriver/hal/arduino_spi_device.hpp"
 #include "loradriver/lora_transceiver.hpp"

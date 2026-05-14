@@ -120,9 +120,8 @@ A minimal blocking sender on ESP32 + SX1276:
 
 ```cpp
 #include <SPI.h>
-#include "loradriver/chips/sx127x_driver.hpp"
-#include "loradriver/hal/esp32_spi_device.hpp"
-#include "loradriver/lora_transceiver.hpp"
+#include <LoRaDriver.h>  // umbrella header; or include the namespaced
+                         // headers below directly (PlatformIO/CMake).
 
 using namespace loradriver;
 
